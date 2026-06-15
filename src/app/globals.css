@@ -1,0 +1,147 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* -----------------------------------------------------------
+ * Hytta theme tokens — Tailwind v4 CSS-first configuration
+ * Warm Norwegian-cabin neutrals, OKLCH for perceptual smoothness.
+ * --------------------------------------------------------- */
+@theme {
+  --font-sans: var(--font-jetbrains-mono);
+  --font-mono: var(--font-jetbrains-mono);
+
+  /* Neutrals (clay/birch) */
+  --color-clay-50:  oklch(0.985 0.005 80);
+  --color-clay-100: oklch(0.965 0.010 78);
+  --color-clay-200: oklch(0.925 0.015 75);
+  --color-clay-300: oklch(0.870 0.020 72);
+  --color-clay-400: oklch(0.760 0.025 68);
+  --color-clay-500: oklch(0.620 0.030 60);
+  --color-clay-600: oklch(0.500 0.030 55);
+  --color-clay-700: oklch(0.395 0.028 50);
+  --color-clay-800: oklch(0.290 0.022 48);
+  --color-clay-900: oklch(0.205 0.016 50);
+  --color-clay-950: oklch(0.140 0.012 50);
+
+  /* Brand accent (forest-moss green) */
+  --color-moss-50:  oklch(0.975 0.020 145);
+  --color-moss-100: oklch(0.945 0.040 145);
+  --color-moss-200: oklch(0.890 0.070 145);
+  --color-moss-300: oklch(0.810 0.100 145);
+  --color-moss-400: oklch(0.700 0.125 148);
+  --color-moss-500: oklch(0.595 0.135 150);
+  --color-moss-600: oklch(0.510 0.125 152);
+  --color-moss-700: oklch(0.425 0.105 154);
+  --color-moss-800: oklch(0.345 0.085 156);
+  --color-moss-900: oklch(0.270 0.065 158);
+
+  /* Room accents — used in the floor plan and chips */
+  --color-room-blue:   oklch(0.685 0.135 240);
+  --color-room-yellow: oklch(0.825 0.140 92);
+  --color-room-red:    oklch(0.625 0.180 25);
+
+  /* Availability ramp */
+  --color-available: oklch(0.745 0.155 150);
+  --color-partial:   oklch(0.795 0.155 80);
+  --color-taken:     oklch(0.625 0.190 25);
+}
+
+/* -----------------------------------------------------------
+ * Semantic tokens — light & dark themes
+ * --------------------------------------------------------- */
+:root {
+  --background: var(--color-clay-50);
+  --foreground: var(--color-clay-900);
+  --muted: var(--color-clay-100);
+  --muted-foreground: var(--color-clay-600);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--color-clay-900);
+  --border: var(--color-clay-200);
+  --input: var(--color-clay-200);
+  --ring: var(--color-moss-500);
+  --primary: var(--color-moss-600);
+  --primary-foreground: oklch(0.99 0 0);
+  --destructive: var(--color-room-red);
+  --destructive-foreground: oklch(0.99 0 0);
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: var(--color-clay-950);
+  --foreground: var(--color-clay-100);
+  --muted: var(--color-clay-800);
+  --muted-foreground: var(--color-clay-400);
+  --card: var(--color-clay-900);
+  --card-foreground: var(--color-clay-100);
+  --border: var(--color-clay-800);
+  --input: var(--color-clay-800);
+  --ring: var(--color-moss-400);
+  --primary: var(--color-moss-400);
+  --primary-foreground: var(--color-clay-950);
+  --destructive: var(--color-room-red);
+  --destructive-foreground: oklch(0.99 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  input, select, textarea, button, optgroup, option {
+    font-family: inherit;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--color-moss-500), transparent 70%);
+    color: var(--foreground);
+  }
+
+  /* react-day-picker overrides */
+  .rdp-root {
+    --rdp-accent-color: var(--primary);
+    --rdp-accent-background-color: color-mix(in oklch, var(--primary), transparent 85%);
+    --rdp-day_button-border-radius: 0.5rem;
+    --rdp-selected-border: 2px solid var(--primary);
+  }
+
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+}

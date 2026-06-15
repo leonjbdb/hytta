@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hytta",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hytta",
+      // Run `wrangler d1 create hytta` and paste the id here AND into
+      // workers/booking-do/wrangler.jsonc (both bind the same database).
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "src/db/migrations"
+    }
+  ],
+  // BookingDO lives in its own worker (workers/booking-do) so it runs on workerd
+  // in BOTH production and local dev. Bind to it cross-script. Its class
+  // migration lives in that worker's config, not here.
+  "durable_objects": {
+    "bindings": [
+      { "name": "BOOKING", "class_name": "BookingDO", "script_name": "hytta-booking-do" }
+    ]
+  }
+}

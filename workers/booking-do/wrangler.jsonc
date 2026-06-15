@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "hytta-booking-do",
+  "main": "index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Same D1 as the app worker — both bind the same database, so the DO's writes
+  // and the app's reads hit one database. Use the SAME database_id you put in
+  // the root wrangler.jsonc.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hytta",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "BOOKING", "class_name": "BookingDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BookingDO"] }]
+}

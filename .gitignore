@@ -1,0 +1,32 @@
+# Dependencies
+/node_modules
+
+# Next.js / OpenNext / Cloudflare build output (any depth)
+.next/
+.open-next/
+.wrangler/
+/out
+/dist
+/build
+next-env.d.ts
+
+# Local D1 / SQLite databases (contain seed + local test data)
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-*
+
+# Environment & secrets (.env.example is committed)
+.env*.local
+.dev.vars
+
+# TypeScript / tooling caches
+*.tsbuildinfo
+/coverage
+
+# Misc
+.DS_Store
+*.log
+.vercel
