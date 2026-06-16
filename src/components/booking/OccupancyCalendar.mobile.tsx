@@ -138,7 +138,10 @@ const MOBILE_CLASSNAMES = {
   range_middle:
     '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,color-mix(in_oklch,var(--primary),transparent_60%),black_20%)] [&_button]:rounded-none [&:first-child_button]:rounded-l-md [&:last-child_button]:rounded-r-md',
   today: 'hytta-today',
-  disabled: 'opacity-30',
+  // Replace rdp's default `rdp-disabled` class (which sets opacity: 0.5 on the
+  // whole cell) with an inert marker, so the cell — and its concave ear + hover
+  // pill — stay full opacity. CustomDayButton dims just the date + marks instead.
+  disabled: 'hytta-past',
   outside: 'opacity-0',
 };
 

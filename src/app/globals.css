@@ -137,10 +137,11 @@
     --rdp-day_button-border-radius: 0.5rem;
     --rdp-selected-border: 2px solid var(--primary);
     --hytta-range-edge-fade: 1.25rem;
-    /* Match the day button's `rounded-md`. NB: not `var(--rdp-day_button-border-radius)`
-       — react-day-picker's unlayered style.css defaults that to 100%, which beats
-       this @layer-base override and would size the concave square to the whole cell. */
-    --hytta-range-concave-corner-size: 0.375rem;
+    /* Match the day button's `rounded-md`, which in this theme = calc(var(--radius)
+       - 2px) = 0.5rem (NOT Tailwind's default 0.375rem). NOT
+       var(--rdp-day_button-border-radius) — rdp's unlayered default is 100%, which
+       would size the concave square to the whole cell. */
+    --hytta-range-concave-corner-size: calc(var(--radius) - 2px);
   }
 
 }
@@ -197,7 +198,7 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  border-radius: 0.375rem;
+  border-radius: calc(var(--radius) - 2px); /* = rounded-md, matches the resting button */
   background: var(--muted);
   pointer-events: none;
 }

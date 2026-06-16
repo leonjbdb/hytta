@@ -36,7 +36,7 @@ export function PendingDot({ participants }: { participants: PendingRef[] }) {
       <span
         role="tooltip"
         className={
-          'pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-max max-w-[14rem] -translate-x-1/2 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-left text-xs font-normal shadow-md transition-opacity ' +
+          'pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-max max-w-sm -translate-x-1/2 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-left text-xs font-normal shadow-md transition-opacity ' +
           tooltipVis
         }
       >
@@ -45,7 +45,10 @@ export function PendingDot({ participants }: { participants: PendingRef[] }) {
         </span>
         <span className="flex flex-col gap-0.5 text-[var(--muted-foreground)]">
           {participants.map((p, i) => (
-            <span key={`${p.name}-${p.startDate}-${p.endDate}-${i}`}>
+            <span
+              key={`${p.name}-${p.startDate}-${p.endDate}-${i}`}
+              className="whitespace-nowrap"
+            >
               {p.name} · {formatStay(p, locale)}
             </span>
           ))}

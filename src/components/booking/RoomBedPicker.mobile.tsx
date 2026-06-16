@@ -683,30 +683,20 @@ function ParticipantList({
           <React.Fragment key={i}>{row}</React.Fragment>
         );
       })}
-      {canAdd &&
-        (boxed && participants.length === 0 ? (
-          <button
-            type="button"
-            onClick={addOne}
-            className="flex w-full items-center rounded-lg border border-[var(--border)] p-2 text-left transition-colors active:bg-[var(--muted)]/50"
-          >
-            <span className="pointer-events-none rounded-md border border-dashed border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
-              <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
-            </span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={addOne}
-            className={cn(
-              'rounded-md border border-dashed border-[var(--border)] bg-transparent text-xs text-[var(--muted-foreground)] transition-colors active:bg-[var(--muted)]',
-              // Capacity: a full-width clickable slot box. Otherwise a compact pill.
-              boxed ? 'flex w-full items-center px-3 py-2' : 'self-start px-2 py-1',
-            )}
-          >
+      {canAdd && (
+        // One "add" treatment everywhere: a full-width slot box with a dashed
+        // "+ Add" chip — identical whether the list is empty or already has
+        // people, so it never changes when you add someone. (Beds keep their own.)
+        <button
+          type="button"
+          onClick={addOne}
+          className="flex w-full items-center rounded-lg border border-[var(--border)] p-2 text-left transition-colors active:bg-[var(--muted)]/50"
+        >
+          <span className="pointer-events-none rounded-md border border-dashed border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
             <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
-          </button>
-        ))}
+          </span>
+        </button>
+      )}
     </div>
   );
 }

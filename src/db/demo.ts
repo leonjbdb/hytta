@@ -12,12 +12,12 @@
  * `.env.example` and `src/lib/bootstrap.ts`). Everything below is invented
  * placeholder content with `@example.com` addresses; none of it is personal.
  *
- * Additive & idempotent: every row uses a deterministic `demo-*` id and is
- * inserted with `onConflictDoNothing`, so re-running adds the demo content to
- * an existing instance without deleting or replacing anything else. The one
- * exception is the demo accounts' password hash, which is refreshed on every
- * run so a changed `DEMO_PASSWORD` takes effect without a reset. To start from
- * a clean slate instead, run `bun run db:reset` first.
+ * Additive & idempotent: every row uses a deterministic `demo-*` id, so
+ * re-running adds the demo content to an existing instance without deleting
+ * anything else. Demo accounts' password hash and demo reservations are
+ * refreshed on every run so a changed `DEMO_PASSWORD`, relative dates, and
+ * revised target assignments take effect without a reset. To start from a
+ * clean slate instead, run `bun run db:reset` first.
  *
  * Guarded: the loader refuses production/CI-like environments and explicitly
  * disables Wrangler remote bindings, so it can only write to the local
@@ -28,9 +28,9 @@
  *   - 4 demo members, all sharing the same password (printed at the end)
  *   - 4 rooms (3 bed-based, 1 slot-based) with their beds, coloured from the
  *     real selectable palette (see ROOM_COLOR_PALETTE)
- *   - bookings covering every state: single- and multi-person stays, a two-
- *     guest stay, a standalone pending request, two conflicting pending
- *     requests, and a cancelled one
+ *   - bookings covering every state across a relative past/future timeline:
+ *     single- and multi-person stays, whole-cottage stays, busy partial/full
+ *     cottage weekends, pending requests, and a cancelled one
  *   - invitations from the admin in every state: an open link, two awaiting a
  *     named recipient, an expired one, and a revoked one
  *   - a few dugnad (chores), one completed by someone other than its creator
@@ -79,7 +79,7 @@ function assertLocalDemoRun(): void {
 const DEMO_PASSWORD = 'password';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** ISO `YYYY-MM-DD`, `offsetDays` from today, so bookings are always upcoming. */
+/** ISO `YYYY-MM-DD`, `offsetDays` from today, so demo bookings stay relative. */
 const iso = (offsetDays: number): string =>
   new Date(Date.now() + offsetDays * DAY_MS).toISOString().slice(0, 10);
 
@@ -173,19 +173,120 @@ interface DemoBooking {
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
 }
 
-const DEMO_BOOKINGS: DemoBooking[] = [
-  /* --- single-person bookings --- */
-  // A whole room for a long weekend.
-  { id: 'demo-res-loft', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'ROOM', roomId: 'demo-room-loft', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
-  // The whole cottage for a week, booked by the admin.
-  { id: 'demo-res-full', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'FULL_COTTAGE', startOffset: 20, endOffset: 27, status: 'CONFIRMED' },
-  // A slot in the slots-mode living room.
-  { id: 'demo-res-slot', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 6, endOffset: 7, status: 'CONFIRMED' },
+const HISTORICAL_DEMO_BOOKING_COUNT = 220;
+const HISTORICAL_START_OFFSET = -760;
+const HISTORICAL_STEP_DAYS = 2;
+const DEMO_GUEST_NAMES = ['Ola Nordmann', 'Kari Berg', 'Per Lie', 'Eli Moen'] as const;
 
-  /* --- multi-person bookings (rows share a bookingId) --- */
+function demoUserIdAt(index: number): string {
+  const user = DEMO_USERS[index % DEMO_USERS.length];
+  if (!user) throw new Error(`Demo user index ${index} is out of range.`);
+  return user.id;
+}
+
+function demoGuestNameAt(index: number): string {
+  const guestName = DEMO_GUEST_NAMES[index % DEMO_GUEST_NAMES.length];
+  if (!guestName) throw new Error(`Demo guest index ${index} is out of range.`);
+  return guestName;
+}
+
+function generateHistoricalDemoBookings(): DemoBooking[] {
+  const bookings: DemoBooking[] = [];
+
+  for (let i = 0; i < HISTORICAL_DEMO_BOOKING_COUNT; i += 1) {
+    const id = `demo-history-${String(i).padStart(3, '0')}`;
+    const startOffset = HISTORICAL_START_OFFSET + i * HISTORICAL_STEP_DAYS;
+    const endOffset = startOffset + 1;
+
+    if (i % 20 === 0) {
+      const userId = demoUserIdAt(i);
+      bookings.push({
+        id: `${id}-full`,
+        bookerId: userId,
+        userId,
+        targetKind: 'FULL_COTTAGE',
+        startOffset,
+        endOffset,
+        status: 'CONFIRMED',
+      });
+      continue;
+    }
+
+    if (i % 9 === 0) {
+      bookings.push(
+        { id: `${id}-loft`, bookingId: id, bookerId: 'demo-astrid', userId: demoUserIdAt(i), targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-hems`, bookingId: id, bookerId: 'demo-astrid', userId: demoUserIdAt(i + 1), targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-annex`, bookingId: id, bookerId: 'demo-astrid', userId: demoUserIdAt(i + 2), targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-stua`, bookingId: id, bookerId: 'demo-astrid', guestName: demoGuestNameAt(i), targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset, endOffset, status: 'CONFIRMED' },
+      );
+      continue;
+    }
+
+    if (i % 5 === 0) {
+      bookings.push(
+        { id: `${id}-annex`, bookingId: id, bookerId: demoUserIdAt(i), userId: demoUserIdAt(i), targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-stua`, bookingId: id, bookerId: demoUserIdAt(i), guestName: demoGuestNameAt(i), targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset, endOffset, status: 'CONFIRMED' },
+      );
+      continue;
+    }
+
+    const userId = demoUserIdAt(i);
+    const pattern = i % 4;
+    if (pattern === 0) {
+      bookings.push({ id, bookerId: userId, userId, targetKind: 'BED', bedId: 'demo-bed-loft-s', startOffset, endOffset, status: 'CONFIRMED' });
+    } else if (pattern === 1) {
+      bookings.push({ id, bookerId: userId, userId, targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset, endOffset, status: 'CONFIRMED' });
+    } else if (pattern === 2) {
+      bookings.push({ id, bookerId: userId, userId, targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset, endOffset, status: 'CONFIRMED' });
+    } else {
+      bookings.push({ id, bookerId: userId, userId, targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset, endOffset, status: 'CONFIRMED' });
+    }
+  }
+
+  return bookings;
+}
+
+const CURATED_DEMO_BOOKINGS: DemoBooking[] = [
+  /* --- established past usage --- */
+  // A whole-cottage winter stay by one member.
+  { id: 'demo-res-full', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'FULL_COTTAGE', startOffset: -132, endOffset: -129, status: 'CONFIRMED' },
+
+  // A busy old weekend where every area has someone in it.
+  { id: 'demo-res-winter-loft', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+  { id: 'demo-res-winter-hems', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+  { id: 'demo-res-winter-annex', bookerId: 'demo-henrik', guestName: 'Ola Nordmann', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+  { id: 'demo-res-winter-stua', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+
+  // Another whole-cottage stay by one person, a few weeks later.
+  { id: 'demo-res-spring-full-henrik', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'FULL_COTTAGE', startOffset: -94, endOffset: -91, status: 'CONFIRMED' },
+
+  // Partial cottage use: a room and a slot at the same time.
+  { id: 'demo-res-spring-annex', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -72, endOffset: -70, status: 'CONFIRMED' },
+  { id: 'demo-res-slot', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: -72, endOffset: -70, status: 'CONFIRMED' },
+
   // Two friends (guests, no accounts) sharing the annex, booked by the admin.
-  { id: 'demo-res-friends-1', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Ola Nordmann', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
-  { id: 'demo-res-friends-2', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Kari Berg', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
+  { id: 'demo-res-friends-1', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Ola Nordmann', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -48, endOffset: -46, status: 'CONFIRMED' },
+  { id: 'demo-res-friends-2', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Kari Berg', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -48, endOffset: -46, status: 'CONFIRMED' },
+
+  // A recent partly used weekend across different areas.
+  { id: 'demo-res-recent-loft', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
+  { id: 'demo-res-recent-hems', bookerId: 'demo-maja', guestName: 'Per Lie', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
+
+  /* --- future confirmed bookings --- */
+  // A long weekend in one specific bed. Avoid whole-room rows for one member
+  // here, because the occupancy UI can make that look like the same person is
+  // assigned to multiple beds in the room.
+  { id: 'demo-res-loft', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'BED', bedId: 'demo-bed-loft-s', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
+
+  // A future whole-cottage stay by one member.
+  { id: 'demo-res-summer-full-maja', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'FULL_COTTAGE', startOffset: 24, endOffset: 27, status: 'CONFIRMED' },
+
+  // Another busy future weekend where every area has someone in it.
+  { id: 'demo-res-future-loft', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+  { id: 'demo-res-future-hems', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+  { id: 'demo-res-future-annex', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+  { id: 'demo-res-future-stua', bookerId: 'demo-henrik', guestName: 'Kari Berg', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+
   // A whole-cottage stay for three: two members and a guest.
   { id: 'demo-res-fam-astrid', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
   { id: 'demo-res-fam-maja', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', userId: 'demo-maja', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
@@ -199,8 +300,84 @@ const DEMO_BOOKINGS: DemoBooking[] = [
   { id: 'demo-res-conflict-b', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 15, endOffset: 18, status: 'PENDING' },
 
   /* --- a cancelled booking, for the cancelled state --- */
-  { id: 'demo-res-cancelled', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'ROOM', roomId: 'demo-room-loft', startOffset: 70, endOffset: 72, status: 'CANCELLED' },
+  { id: 'demo-res-cancelled', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'ROOM', roomId: 'demo-room-loft', startOffset: -4, endOffset: -2, status: 'CANCELLED' },
 ];
+
+const DEMO_BOOKINGS: DemoBooking[] = [
+  ...generateHistoricalDemoBookings(),
+  ...CURATED_DEMO_BOOKINGS,
+];
+
+function offsetRangesOverlap(a: DemoBooking, b: DemoBooking): boolean {
+  return a.startOffset <= b.endOffset && b.startOffset <= a.endOffset;
+}
+
+function demoUserName(userId: string): string {
+  const user = DEMO_USERS.find((u) => u.id === userId);
+  if (!user) throw new Error(`Demo booking references unknown user ${userId}`);
+  return `${user.firstName} ${user.lastName}`;
+}
+
+function demoRoomById(roomId: string): DemoRoom {
+  const room = DEMO_ROOMS.find((r) => r.id === roomId);
+  if (!room) throw new Error(`Demo booking references unknown room ${roomId}`);
+  return room;
+}
+
+function assertDemoBookingsAreConsistent(): void {
+  const activeBookings = DEMO_BOOKINGS.filter((b) => b.status !== 'CANCELLED');
+  if (!activeBookings.some((b) => b.endOffset < 0)) {
+    throw new Error('Demo bookings must include at least one past active stay.');
+  }
+  if (!activeBookings.some((b) => b.startOffset > 0)) {
+    throw new Error('Demo bookings must include at least one future active stay.');
+  }
+  const pastBookingIds = new Set(
+    activeBookings
+      .filter((b) => b.endOffset < 0)
+      .map((b) => b.bookingId ?? b.id),
+  );
+  if (pastBookingIds.size < 200) {
+    throw new Error('Demo bookings must include hundreds of past stays.');
+  }
+
+  const byUser = new Map<string, DemoBooking[]>();
+  for (const booking of activeBookings) {
+    if (booking.startOffset > booking.endOffset) {
+      throw new Error(`Demo booking ${booking.id} ends before it starts.`);
+    }
+    if (booking.userId && booking.targetKind === 'ROOM') {
+      if (!booking.roomId) {
+        throw new Error(`Demo booking ${booking.id} is missing a room id.`);
+      }
+      const room = demoRoomById(booking.roomId);
+      if (room.capacityMode === 'BEDS') {
+        if (!room.beds) {
+          throw new Error(`Demo room ${room.id} is missing bed metadata.`);
+        }
+        if (room.beds.length > 1) {
+          throw new Error(
+            `Demo booking ${booking.id} puts ${demoUserName(booking.userId)} in a whole multi-bed room. Use a BED target instead.`,
+          );
+        }
+      }
+    }
+    if (!booking.userId) continue;
+
+    const existingBookings = byUser.get(booking.userId);
+    if (existingBookings) {
+      for (const existing of existingBookings) {
+        if (!offsetRangesOverlap(booking, existing)) continue;
+        throw new Error(
+          `Demo bookings ${existing.id} and ${booking.id} overlap for ${demoUserName(booking.userId)}.`,
+        );
+      }
+      existingBookings.push(booking);
+    } else {
+      byUser.set(booking.userId, [booking]);
+    }
+  }
+}
 
 interface DemoDugnad {
   id: string;
@@ -381,25 +558,42 @@ async function loadRoomsAndBeds(db: DB): Promise<void> {
 }
 
 async function loadBookings(db: DB): Promise<void> {
+  assertDemoBookingsAreConsistent();
   for (const b of DEMO_BOOKINGS) {
+    const row = {
+      id: b.id,
+      // Rows sharing a bookingId are one booking; single-person rows default
+      // their bookingId to their own row id.
+      bookingId: b.bookingId ?? b.id,
+      bookerId: b.bookerId,
+      userId: b.userId ?? null,
+      guestName: b.guestName ?? null,
+      targetKind: b.targetKind,
+      roomId: b.roomId ?? null,
+      bedId: b.bedId ?? null,
+      startDate: iso(b.startOffset),
+      endDate: iso(b.endOffset),
+      status: b.status,
+    };
+
     await db
       .insert(reservations)
-      .values({
-        id: b.id,
-        // Rows sharing a bookingId are one booking; single-person rows default
-        // their bookingId to their own row id.
-        bookingId: b.bookingId ?? b.id,
-        bookerId: b.bookerId,
-        userId: b.userId ?? null,
-        guestName: b.guestName ?? null,
-        targetKind: b.targetKind,
-        roomId: b.roomId ?? null,
-        bedId: b.bedId ?? null,
-        startDate: iso(b.startOffset),
-        endDate: iso(b.endOffset),
-        status: b.status,
+      .values(row)
+      .onConflictDoUpdate({
+        target: reservations.id,
+        set: {
+          bookingId: row.bookingId,
+          bookerId: row.bookerId,
+          userId: row.userId,
+          guestName: row.guestName,
+          targetKind: row.targetKind,
+          roomId: row.roomId,
+          bedId: row.bedId,
+          startDate: row.startDate,
+          endDate: row.endDate,
+          status: row.status,
+        },
       })
-      .onConflictDoNothing({ target: reservations.id })
       .run();
   }
 }
