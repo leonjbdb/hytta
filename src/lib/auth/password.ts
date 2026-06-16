@@ -3,14 +3,19 @@
  *
  * Cloudflare Workers (workerd) has neither Node's native crypto nor Bun's
  * `Bun.password` (argon2id), so we use `crypto.subtle`, which is available on
- * workerd, Node, and Bun alike. Parameters follow OWASP's 2023 PBKDF2 guidance
- * (≥600k iterations for SHA-256). Hashes are self-describing strings:
+ * workerd, Node, and Bun alike. Hashes are self-describing strings:
  *
  *   pbkdf2$sha256$<iterations>$<salt-b64>$<hash-b64>
  *
  * so the iteration count can be raised over time without breaking older hashes.
+ *
+ * NOTE: Cloudflare's production runtime (workerd) hard-caps PBKDF2 at 100_000
+ * iterations — `crypto.subtle.deriveBits` throws above it (locally, Miniflare/
+ * Node/Bun do NOT enforce this, so higher values appear to work in dev then
+ * fail in production). OWASP's 2023 guidance (≥600k) therefore can't be met
+ * with PBKDF2 on Workers; 100_000 is the platform ceiling we use.
  */
-const ITERATIONS = 600_000;
+const ITERATIONS = 100_000;
 const KEY_LEN = 32; // bytes
 const SALT_LEN = 16; // bytes
 

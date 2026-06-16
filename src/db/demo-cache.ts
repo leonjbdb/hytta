@@ -7,22 +7,34 @@ import {
 
 const DEMO_CACHE_ORIGIN = 'https://hytta.local';
 const DEMO_CACHE_PREFIX = '/__hytta_demo_state__';
-const LOCAL_DEMO_CACHE_KEY = '__hyttaDemoLocalCache';
+const DEMO_CACHE_NAME = 'hytta-demo-state';
 
 interface CachedDemoState {
   generation: number;
   state: DemoState;
 }
 
-type CloudflareCacheStorage = CacheStorage & {
-  default: Cache;
-};
-
-type LocalDemoCacheGlobal = typeof globalThis & {
-  __hyttaDemoLocalCache?: Map<string, string>;
-};
+// `caches.default` is Cloudflare's non-standard extension; `.open()` is the
+// spec CacheStorage method. We try both because which one is reachable depends
+// on the runtime context.
+type DemoCacheStorage = CacheStorage & { default?: Cache };
 
 let writeQueue: Promise<void> = Promise.resolve();
+
+/**
+ * Per-isolate fallback used when the Cloudflare Cache API isn't reachable in the
+ * current context (e.g. `caches.default` is not exposed during OpenNext SSR, or
+ * a cache operation throws). Under the Worker's stateless execution model this
+ * does not persist across requests — reads still rebuild deterministically from
+ * the seed, and writes (demo bookings) only live for the current request. When
+ * the Cache API *is* reachable, the cache path keeps the full hourly-shared
+ * persistence instead.
+ */
+const memoryStore = new Map<string, string>();
+
+function stateKey(generation: number): string {
+  return `v${DEMO_STATE_VERSION}:${generation}`;
+}
 
 function demoStateRequest(generation: number): Request {
   return new Request(
@@ -31,8 +43,8 @@ function demoStateRequest(generation: number): Request {
   );
 }
 
-function demoStateResponse(payload: CachedDemoState): Response {
-  return new Response(JSON.stringify(payload), {
+function demoStateResponse(body: string): Response {
+  return new Response(body, {
     headers: {
       'content-type': 'application/json',
       'cache-control': 'public, max-age=3600',
@@ -40,45 +52,30 @@ function demoStateResponse(payload: CachedDemoState): Response {
   });
 }
 
-function getCloudflareDemoCache(): Cache | null {
+/**
+ * Resolve a Cache for cross-request demo state. Prefer Cloudflare's
+ * `caches.default`; fall back to a named cache (`caches.open`) when `.default`
+ * isn't exposed in the current context. Returns null when no Cache API is
+ * reachable, leaving callers on the in-memory store. Never throws.
+ */
+async function getDemoCache(): Promise<Cache | null> {
   if (typeof caches === 'undefined') return null;
-  return (caches as CloudflareCacheStorage).default;
-}
-
-function getLocalDemoCache(): Map<string, string> {
-  const nodeEnv =
-    typeof process === 'undefined' ? 'production' : process.env.NODE_ENV;
-  if (nodeEnv !== 'development' && nodeEnv !== 'test') {
-    throw new Error('[demo] Cache API is required when DEMO=true.');
+  const api = caches as DemoCacheStorage;
+  try {
+    if (api.default) return api.default;
+  } catch {
+    // Accessing `.default` can throw in some runtime contexts — fall through.
   }
-
-  const globalStore = globalThis as LocalDemoCacheGlobal;
-  globalStore[LOCAL_DEMO_CACHE_KEY] ??= new Map<string, string>();
-  return globalStore[LOCAL_DEMO_CACHE_KEY];
-}
-
-function localDemoCacheKey(generation: number): string {
-  return `v${DEMO_STATE_VERSION}:${generation}`;
-}
-
-async function readCachedState(generation: number): Promise<DemoState | null> {
-  const cache = getCloudflareDemoCache();
-  if (!cache) {
-    const json = getLocalDemoCache().get(localDemoCacheKey(generation));
-    if (!json) return null;
-    const payload = JSON.parse(json) as CachedDemoState;
-    if (payload.generation !== generation) {
-      throw new Error(
-        `[demo] Cached state generation mismatch: expected ${generation}, got ${payload.generation}.`,
-      );
-    }
-    return payload.state;
+  try {
+    if (typeof api.open === 'function') return await api.open(DEMO_CACHE_NAME);
+  } catch {
+    // Named cache unavailable — fall through to the in-memory store.
   }
+  return null;
+}
 
-  const response = await cache.match(demoStateRequest(generation));
-  if (!response) return null;
-
-  const payload = (await response.json()) as CachedDemoState;
+function parseCachedState(json: string, generation: number): DemoState {
+  const payload = JSON.parse(json) as CachedDemoState;
   if (payload.generation !== generation) {
     throw new Error(
       `[demo] Cached state generation mismatch: expected ${generation}, got ${payload.generation}.`,
@@ -87,44 +84,54 @@ async function readCachedState(generation: number): Promise<DemoState | null> {
   return payload.state;
 }
 
-async function writeCachedState(generation: number, state: DemoState): Promise<void> {
-  const payload = { generation, state } satisfies CachedDemoState;
-  const cache = getCloudflareDemoCache();
-  if (!cache) {
-    getLocalDemoCache().set(localDemoCacheKey(generation), JSON.stringify(payload));
-    return;
+async function readCachedState(generation: number): Promise<DemoState | null> {
+  const cache = await getDemoCache();
+  if (cache) {
+    try {
+      const response = await cache.match(demoStateRequest(generation));
+      return response ? parseCachedState(await response.text(), generation) : null;
+    } catch (err) {
+      console.warn('[demo] Cache read failed; using in-memory store:', err);
+    }
   }
+  const json = memoryStore.get(stateKey(generation));
+  return json ? parseCachedState(json, generation) : null;
+}
 
-  await cache.put(
-    demoStateRequest(generation),
-    demoStateResponse(payload),
-  );
+async function writeCachedState(generation: number, state: DemoState): Promise<void> {
+  const json = JSON.stringify({ generation, state } satisfies CachedDemoState);
+  const cache = await getDemoCache();
+  if (cache) {
+    try {
+      await cache.put(demoStateRequest(generation), demoStateResponse(json));
+      return;
+    } catch (err) {
+      console.warn('[demo] Cache write failed; using in-memory store:', err);
+    }
+  }
+  memoryStore.set(stateKey(generation), json);
 }
 
 async function deleteCachedState(generation: number): Promise<void> {
-  const cache = getCloudflareDemoCache();
-  if (!cache) {
-    getLocalDemoCache().delete(localDemoCacheKey(generation));
-    return;
+  memoryStore.delete(stateKey(generation));
+  const cache = await getDemoCache();
+  if (!cache) return;
+  try {
+    await cache.delete(demoStateRequest(generation));
+  } catch {
+    // Best-effort cleanup of the previous generation; ignore failures.
   }
-
-  await cache.delete(demoStateRequest(generation));
 }
 
 export async function getDemoState(): Promise<DemoState> {
-  try {
-    const { generation } = getDemoResetInfo();
-    const cached = await readCachedState(generation);
-    if (cached) return cached;
+  const { generation } = getDemoResetInfo();
+  const cached = await readCachedState(generation);
+  if (cached) return cached;
 
-    const state = await createDemoState();
-    await writeCachedState(generation, state);
-    await deleteCachedState(generation - 1);
-    return state;
-  } catch (err) {
-    console.error('[demo][diag] getDemoState failed:', err);
-    throw err;
-  }
+  const state = await createDemoState();
+  await writeCachedState(generation, state);
+  await deleteCachedState(generation - 1);
+  return state;
 }
 
 export async function setDemoState(state: DemoState): Promise<void> {

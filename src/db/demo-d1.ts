@@ -328,14 +328,26 @@ async function executeStatement(
   params: unknown[],
   stateOverride: DemoState | null = null,
 ): Promise<ExecutionResult> {
-  if (stateOverride) {
-    return executeStatementOnState(stateOverride, sql, params);
+  try {
+    if (stateOverride) {
+      return executeStatementOnState(stateOverride, sql, params);
+    }
+    if (isReadSql(sql)) {
+      const state = await getDemoState();
+      return executeStatementOnState(state, sql, params);
+    }
+    return updateDemoState((state) => executeStatementOnState(state, sql, params));
+  } catch (err) {
+    // The drizzle D1 driver rewraps any throw here as an opaque "Failed query:
+    // <sql>", discarding the real cause. Log it so demo-mode failures on the
+    // Worker stay diagnosable instead of surfacing as a generic query error.
+    console.error(
+      '[demo] statement failed:',
+      sql,
+      err instanceof Error ? (err.stack ?? err.message) : err,
+    );
+    throw err;
   }
-  if (isReadSql(sql)) {
-    const state = await getDemoState();
-    return executeStatementOnState(state, sql, params);
-  }
-  return updateDemoState((state) => executeStatementOnState(state, sql, params));
 }
 
 function executeStatementOnState(
