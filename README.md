@@ -232,8 +232,10 @@ runtime, so `HYTTA_D1_DATABASE_ID` does not need to be a runtime variable.
 
 If the Cloudflare dashboard suggests updating `wrangler.jsonc` after adding
 runtime variables, do not commit your real deployment values to tracked config.
-This repo keeps account-specific values in `.env.local`, Workers Builds
-variables, and Worker runtime variables instead.
+The tracked Wrangler configs set `keep_vars: true`, so Wrangler/OpenNext deploys
+preserve dashboard-managed runtime text variables. This repo keeps
+account-specific values in `.env.local`, Workers Builds variables, and Worker
+runtime variables instead.
 
 ### Cloudflare Workers deployment
 

@@ -136,7 +136,7 @@
     "guestPlaceholder": "Skriv et navn eller velg en person",
     "singleBedRoomSingleHint": "Én enkeltseng (1 person).",
     "singleBedRoomDoubleHint": "Én dobbeltseng (2 personer).",
-    "slotsUsed": "{used}/{total} plasser brukt",
+    "slotsUsed": "{used}/{total} personer",
     "slotsUsedUnlimited": "{count, plural, one {# person} other {# personer}}",
     "pendingCount": "{count, plural, one {# forespørsel} other {# forespørsler}}",
     "noDates": "Velg innsjekks- og utsjekksdato i kalenderen.",

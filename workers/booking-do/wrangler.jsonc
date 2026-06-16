@@ -4,6 +4,7 @@
   "main": "index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
   "observability": { "enabled": true },
   // Same D1 as the app worker — both bind the same database, so the DO's writes
   // and the app's reads hit one database. Remote scripts inject database_id
