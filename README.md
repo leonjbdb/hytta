@@ -190,7 +190,6 @@ to boot otherwise.
 
 | Var                   | Source / notes                                                |
 | --------------------- | ------------------------------------------------------------- |
-| `HYTTA_WORKER_NAME`   | Cloudflare Worker project name, e.g. `bekkeholt`             |
 | `HYTTA_D1_DATABASE_ID` | Cloudflare D1 UUID from `wrangler d1 create hytta`           |
 | `AUTH_SECRET`         | `openssl rand -base64 32`                                     |
 | `AUTH_URL`            | Public origin in production, e.g. `https://hytta.example.com` |
@@ -200,15 +199,19 @@ to boot otherwise.
 | `ADMIN_EMAILS`        | Optional comma-separated admin auto-promotion list            |
 | `TEST_USER_*`         | Optional env-managed test account                            |
 
-`HYTTA_WORKER_NAME` and `HYTTA_D1_DATABASE_ID` are not committed to Wrangler
-config. Remote scripts read them from `.env.local` (or the shell environment),
-generate ignored `wrangler.local.jsonc` files, and pass those files to
-Wrangler/OpenNext.
+`HYTTA_D1_DATABASE_ID` is not committed to Wrangler config. Remote scripts read
+it from `.env.local` (or the shell environment), generate ignored
+`wrangler.local.jsonc` files, and pass those files to Wrangler/OpenNext.
 
 ### Cloudflare Workers deployment
 
-Use **Cloudflare Workers Builds**, not a static Pages build. Configure the
-GitHub deployment with these commands:
+Use **Cloudflare Workers Builds**, not a static Pages build. This repo deploys
+two Workers: the app Worker and the Booking Durable Object Worker. Workers
+Builds forces each project deploy to that project's Worker name, so the two
+Workers must be deployed by separate commands/projects.
+
+The app Workers Builds project must be named `hytta`, matching
+`wrangler.jsonc`. Configure it with these commands:
 
 | Field          | Command          |
 | -------------- | ---------------- |
@@ -216,18 +219,22 @@ GitHub deployment with these commands:
 | Deploy command | `bun run deploy` |
 
 `bun run build` generates the account-local Wrangler config from
-`HYTTA_WORKER_NAME` and `HYTTA_D1_DATABASE_ID`, then runs
-`opennextjs-cloudflare build`, producing `.open-next`.
+`HYTTA_D1_DATABASE_ID`, then runs `opennextjs-cloudflare build`, producing
+`.open-next`.
 
-`bun run deploy` deploys the Booking Durable Object worker, then runs
-`opennextjs-cloudflare deploy` for the already-built app worker. If `.open-next`
-is missing, deploy fails instead of building. Cloudflare Workers do not have a
-long-running runtime start command after deployment.
+`bun run deploy` runs `opennextjs-cloudflare deploy` for the already-built app
+worker. If `.open-next` is missing, deploy fails instead of building.
+Cloudflare Workers do not have a long-running runtime start command after
+deployment.
 
-For a project named `bekkeholt`, set `HYTTA_WORKER_NAME=bekkeholt`. The app
-Worker deploys as `bekkeholt`, and the Durable Object worker deploys as
-`bekkeholt-booking-do`. The cottage display name is still set later in `/setup`
-and stored in D1.
+Deploy the Durable Object worker separately, either from your terminal with
+`bun run deploy:do`, or as a second Workers Builds project named
+`hytta-booking-do` with deploy command `bun run deploy:do`. That Worker must
+exist before the app Worker can bind to it.
+
+Do not rename the Cloudflare app project away from `hytta` unless you also
+change `wrangler.jsonc`, `workers/booking-do/wrangler.jsonc`, and the app's
+Durable Object `script_name` consistently.
 
 ## Scripts
 
@@ -245,7 +252,10 @@ and stored in D1.
 | `bun run demo`         | Load fictional demo data (idempotent)         |
 | `bun run db:reset`     | Wipe local D1 + re-migrate (`--demo` to load) |
 | `bun run db:studio`    | Drizzle Studio                                |
-| `bun run deploy`       | Deploy BookingDO + already-built app worker   |
+| `bun run deploy:do`    | Deploy only the BookingDO worker              |
+| `bun run deploy:app`   | Deploy only the already-built app worker      |
+| `bun run deploy:all`   | Deploy both Workers outside Workers Builds    |
+| `bun run deploy`       | Deploy only the already-built app worker      |
 | `bun run lint`         | `next lint`                                   |
 
 ## Verification checklist

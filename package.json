@@ -16,6 +16,8 @@
 		"test:i18n": "bun test tests/i18n",
 		"preview": "bun run scripts/preview.ts",
 		"deploy:do": "bun run scripts/cloudflare.ts deploy:do",
+		"deploy:app": "bun run scripts/cloudflare.ts deploy:app",
+		"deploy:all": "bun run scripts/cloudflare.ts deploy:all",
 		"deploy": "bun run scripts/cloudflare.ts deploy",
 		"cf-typegen": "wrangler types",
 		"db:generate": "drizzle-kit generate",

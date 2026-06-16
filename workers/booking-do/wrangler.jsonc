@@ -1,7 +1,5 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  // Remote scripts replace this account-neutral name with
-  // `${HYTTA_WORKER_NAME}-booking-do` in ignored wrangler.local.jsonc files.
   "name": "hytta-booking-do",
   "main": "index.ts",
   "compatibility_date": "2026-06-01",
