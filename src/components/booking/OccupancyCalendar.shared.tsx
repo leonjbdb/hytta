@@ -149,6 +149,9 @@ const WEEK_END_DAY = 0; // Sunday.
 export const RANGE_CONTINUATION_CLASSNAMES = {
   rangeContinuesAfterWeek: 'hytta-range-continues-after-week',
   rangeContinuesBeforeWeek: 'hytta-range-continues-before-week',
+  // Month-boundary continuation reuses the row-wrap fade (same right/left edge fade).
+  rangeContinuesAfterMonth: 'hytta-range-continues-after-week',
+  rangeContinuesBeforeMonth: 'hytta-range-continues-before-week',
   rangeStartContinuesBelow: 'hytta-range-start-continues-below [&_button]:!rounded-bl-none',
   rangeEndContinuesAbove: 'hytta-range-end-continues-above [&_button]:!rounded-tr-none',
   // Concave cells square every corner except the one carrying the green "ear".
@@ -162,11 +165,19 @@ export const RANGE_CONTINUATION_CLASSNAMES = {
     'hytta-range-concave-after-end [&_button]:!rounded-tr-none [&_button]:!rounded-bl-none [&_button]:!rounded-br-none',
 };
 
-export function getRangeContinuationModifiers(range: DateRange | undefined) {
+export function getRangeContinuationModifiers(range: DateRange | undefined, displayedMonth?: Date) {
   const fromDate = range?.from;
   const toDate = range?.to;
   const from = fromDate ? toISODate(fromDate) : null;
   const to = toDate ? toISODate(toDate) : null;
+  // A concave ear can land on an adjacent-month cell (range ending on the month's
+  // last day). Only draw it when the real start/end sits in the month on screen —
+  // if the range merely crosses into another month, the end cell and its ear
+  // belong off-screen, so we skip both.
+  const inDisplayedMonth = (d: Date) =>
+    !displayedMonth ||
+    (d.getFullYear() === displayedMonth.getFullYear() &&
+      d.getMonth() === displayedMonth.getMonth());
 
   return {
     rangeContinuesAfterWeek: (date: Date) => {
@@ -179,23 +190,57 @@ export function getRangeContinuationModifiers(range: DateRange | undefined) {
       const iso = toISODate(date);
       return date.getDay() === WEEK_START_DAY && iso > from && iso <= to;
     },
+    // Last in-month day of a range that continues into the next month (its end
+    // sits off-screen). Fades the green out at the right edge, same as a week wrap.
+    rangeContinuesAfterMonth: (date: Date) => {
+      if (!from || !to) return false;
+      const iso = toISODate(date);
+      if (iso < from || iso >= to) return false;
+      return inDisplayedMonth(date) && !inDisplayedMonth(addDays(date, 1));
+    },
+    // First in-month day of a range that continues from the previous month — fades
+    // the green out at the left edge.
+    rangeContinuesBeforeMonth: (date: Date) => {
+      if (!from || !to) return false;
+      const iso = toISODate(date);
+      if (iso <= from || iso > to) return false;
+      return inDisplayedMonth(date) && !inDisplayedMonth(addDays(date, -1));
+    },
+    // The cell each ear leans on is one week above/below it (addDays ±7). It must
+    // be both in the range AND on screen — otherwise the ear smooths against a
+    // selection in an adjacent month that isn't visible (e.g. a top-row ear that
+    // references the previous month), which reads as a stray corner.
     rangeStartContinuesBelow: (date: Date) => {
       if (!from || !to || !sameISODay(range?.from, date)) return false;
-      return toISODate(addDays(date, 7)) <= to;
+      // A start on Monday already sits on the week's left edge — keep its rounded
+      // corner instead of squaring it to attach to the row below.
+      if (date.getDay() === WEEK_START_DAY) return false;
+      if (!inDisplayedMonth(date)) return false;
+      const below = addDays(date, 7);
+      return toISODate(below) <= to && inDisplayedMonth(below);
     },
     rangeEndContinuesAbove: (date: Date) => {
       if (!from || !to || !sameISODay(range?.to, date)) return false;
-      return toISODate(addDays(date, -7)) >= from;
+      // An end on Sunday already sits on the week's right edge — keep its rounded
+      // corner instead of squaring it to attach to the row above.
+      if (date.getDay() === WEEK_END_DAY) return false;
+      if (!inDisplayedMonth(date)) return false;
+      const above = addDays(date, -7);
+      return toISODate(above) >= from && inDisplayedMonth(above);
     },
     rangeConcaveBeforeStart: (date: Date) => {
       if (!fromDate || !to || fromDate.getDay() === WEEK_START_DAY) return false;
+      if (!inDisplayedMonth(fromDate)) return false;
       if (toISODate(date) !== toISODate(addDays(fromDate, -1))) return false;
-      return toISODate(addDays(date, 7)) <= to;
+      const below = addDays(date, 7);
+      return toISODate(below) <= to && inDisplayedMonth(below);
     },
     rangeConcaveAfterEnd: (date: Date) => {
       if (!toDate || !from || toDate.getDay() === WEEK_END_DAY) return false;
+      if (!inDisplayedMonth(toDate)) return false;
       if (toISODate(date) !== toISODate(addDays(toDate, 1))) return false;
-      return toISODate(addDays(date, -7)) >= from;
+      const above = addDays(date, -7);
+      return toISODate(above) >= from && inDisplayedMonth(above);
     },
   };
 }

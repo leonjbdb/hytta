@@ -48,8 +48,9 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
       <DayPicker
         mode="range"
         selected={selection.value}
-        modifiers={getRangeContinuationModifiers(selection.value)}
+        modifiers={getRangeContinuationModifiers(selection.value, month)}
         modifiersClassNames={RANGE_CONTINUATION_CLASSNAMES}
+        showOutsideDays
         onSelect={(_next, triggerDate) => ctrl.handleDayClick(triggerDate)}
         month={month}
         onMonthChange={setMonth}
@@ -130,19 +131,24 @@ const MOBILE_CLASSNAMES = {
   // Selected/range days keep their green on hover, just a shade darker (the
   // default muted-bg hover would wipe the green out).
   selected:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)]',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[var(--primary)]',
   range_start:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-l-md [&_button]:rounded-r-none [&:last-child_button]:rounded-r-md',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[var(--primary)] [&_button]:rounded-l-md [&_button]:rounded-r-none [&:last-child_button]:rounded-r-md',
   range_end:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-r-md [&_button]:rounded-l-none [&:first-child_button]:rounded-l-md',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[var(--primary)] [&_button]:rounded-r-md [&_button]:rounded-l-none [&:first-child_button]:rounded-l-md',
   range_middle:
-    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,color-mix(in_oklch,var(--primary),transparent_60%),black_20%)] [&_button]:rounded-none [&:first-child_button]:rounded-l-md [&:last-child_button]:rounded-r-md',
+    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:rounded-none [&:first-child_button]:rounded-l-md [&:last-child_button]:rounded-r-md',
   today: 'hytta-today',
   // Replace rdp's default `rdp-disabled` class (which sets opacity: 0.5 on the
   // whole cell) with an inert marker, so the cell — and its concave ear + hover
   // pill — stay full opacity. CustomDayButton dims just the date + marks instead.
   disabled: 'hytta-past',
-  outside: 'opacity-0',
+  // Outside (adjacent-month) days are rendered (showOutsideDays) only so a
+  // month-end concave ear has a cell to paint on. Hide their number/marks and
+  // make them inert, so they stay visually empty + unclickable — but the cell
+  // background (the concave ear) still shows.
+  outside:
+    '[&_button]:pointer-events-none [&_button_span]:opacity-0 [&[data-selected]_button]:!bg-transparent',
 };
 
 function CalendarHeader({
