@@ -25,5 +25,12 @@
     "bindings": [
       { "name": "BOOKING", "class_name": "BookingDO", "script_name": "hytta-booking-do" }
     ]
-  }
+  },
+  // Historical cleanup: an early deploy accidentally registered BookingDO on
+  // the app worker (`hytta`). The class now lives in `hytta-booking-do`; this
+  // migration lets Cloudflare remove the stale app-owned class.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["BookingDO"] },
+    { "tag": "v2", "deleted_classes": ["BookingDO"] }
+  ]
 }

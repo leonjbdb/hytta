@@ -222,19 +222,39 @@ The app Workers Builds project must be named `hytta`, matching
 `HYTTA_D1_DATABASE_ID`, then runs `opennextjs-cloudflare build`, producing
 `.open-next`.
 
+Enable build caching for the `hytta` Workers Builds project in Cloudflare:
+Settings > Build > Build cache > Enable. Cloudflare caches Bun's package cache
+and Next.js' `.next/cache` directory. The first build after enabling the cache
+may still print `No build cache found`; subsequent builds should restore it.
+
 `bun run deploy` runs `opennextjs-cloudflare deploy` for the already-built app
 worker. If `.open-next` is missing, deploy fails instead of building.
 Cloudflare Workers do not have a long-running runtime start command after
 deployment.
 
-Deploy the Durable Object worker separately, either from your terminal with
-`bun run deploy:do`, or as a second Workers Builds project named
-`hytta-booking-do` with deploy command `bun run deploy:do`. That Worker must
-exist before the app Worker can bind to it.
+Deploy the Durable Object worker separately before deploying the app Worker.
+The app deploy fails with `Cannot create binding for class in script
+'hytta-booking-do' that does not exist` until this Worker exists.
+
+Either deploy it once from your terminal with `bun run deploy:do`, or create a
+second Workers Builds project from the same GitHub repo:
+
+| Field          | Command / value      |
+| -------------- | -------------------- |
+| Project name   | `hytta-booking-do`   |
+| Build command  | leave empty          |
+| Deploy command | `bun run deploy:do`  |
+
+The `hytta-booking-do` project only needs `HYTTA_D1_DATABASE_ID` as a build
+variable. The app project's auth/email secrets stay on the `hytta` Worker.
 
 Do not rename the Cloudflare app project away from `hytta` unless you also
 change `wrangler.jsonc`, `workers/booking-do/wrangler.jsonc`, and the app's
 Durable Object `script_name` consistently.
+
+The app worker's `wrangler.jsonc` also contains a `deleted_classes` cleanup
+migration for `BookingDO`. Keep it: it removes stale Cloudflare state from an
+early deploy where the app worker accidentally owned the Durable Object class.
 
 ## Scripts
 
