@@ -14,6 +14,14 @@ interface Props {
   isAdmin: boolean;
   /** When true, action buttons stack vertically (mobile layout). */
   stackedActions?: boolean;
+  /** Id of the task to reveal here (a just-completed one). The section
+   *  auto-opens and the card scrolls itself into view. Null when the focused
+   *  task is in the open list instead (e.g. just un-completed). */
+  highlightId?: string | null;
+  /** Bumped on every complete/undo so re-focusing the same card re-scrolls. */
+  focusSeq?: number;
+  /** Reports a task's new list after complete/undo, so the page can re-focus. */
+  onFocus?: (id: string, list: 'open' | 'completed') => void;
 }
 
 /**
@@ -26,11 +34,21 @@ export function CompletedList({
   viewerId,
   isAdmin,
   stackedActions = false,
+  highlightId = null,
+  focusSeq = 0,
+  onFocus,
 }: Props) {
   const t = useTranslations('Dugnad');
   const [open, setOpen] = React.useState(false);
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const sentinelRef = React.useRef<HTMLDivElement | null>(null);
+
+  // A just-completed task targets this list — open it so the card renders (and
+  // then scrolls itself into view). `focusSeq` is in the deps so completing the
+  // same task twice (after an undo) re-opens it.
+  React.useEffect(() => {
+    if (highlightId) setOpen(true);
+  }, [highlightId, focusSeq]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -79,6 +97,9 @@ export function CompletedList({
                   viewerId={viewerId}
                   isAdmin={isAdmin}
                   inlineActions={!stackedActions}
+                  onFocus={onFocus}
+                  focusActive={row.id === highlightId}
+                  focusSeq={focusSeq}
                 />
               ))}
               {hasMore ? (

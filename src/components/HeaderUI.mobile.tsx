@@ -98,7 +98,7 @@ export function HeaderMobileControls({
 
   const community: NavEntry[] = [
     { kind: 'link', href: '/groups', label: t('groups'), icon: <Users className="size-4" /> },
-    { kind: 'link', href: '/dugnad', label: t('dugnad'), icon: <Hammer className="size-4" /> },
+    { kind: 'link', href: '/volunteer', label: t('dugnad'), icon: <Hammer className="size-4" /> },
   ];
 
   const utility: NavEntry[] = [];

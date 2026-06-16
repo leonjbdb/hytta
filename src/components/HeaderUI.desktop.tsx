@@ -66,7 +66,7 @@ export function HeaderDesktopControls({
           {t('groups')}
         </Button>
       </Link>
-      <Link href="/dugnad">
+      <Link href="/volunteer">
         <Button variant="ghost" size="sm">
           <Hammer className="size-4" />
           {t('dugnad')}

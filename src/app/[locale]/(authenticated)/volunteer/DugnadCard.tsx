@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { CheckCircle2, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PersonBadge } from '@/components/PersonBadge';
@@ -23,9 +24,24 @@ interface Props {
   isAdmin: boolean;
   /** When `false` the card stacks all action buttons full-width vertically. */
   inlineActions?: boolean;
+  /** Called after the task is completed or un-completed, with the list it now
+   *  lives in, so the page can scroll the card into view. */
+  onFocus?: (id: string, list: 'open' | 'completed') => void;
+  /** True when this card is the one to reveal — drives the scroll + ring. */
+  focusActive?: boolean;
+  /** Bumped on every complete/undo so re-focusing the same card re-scrolls. */
+  focusSeq?: number;
 }
 
-export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Props) {
+export function DugnadCard({
+  row,
+  viewerId,
+  isAdmin,
+  inlineActions = true,
+  onFocus,
+  focusActive = false,
+  focusSeq = 0,
+}: Props) {
   const t = useTranslations('Dugnad');
   const locale = useLocale();
   const router = useRouter();
@@ -52,7 +68,10 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
     startTransition(async () => {
       const res = await completeDugnadAction(row.id);
       if (!res.ok) toast.error(res.message || t('errorGeneric'));
-      else router.refresh();
+      else {
+        onFocus?.(row.id, 'completed');
+        router.refresh();
+      }
     });
   };
 
@@ -61,9 +80,26 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
     startTransition(async () => {
       const res = await uncompleteDugnadAction(row.id);
       if (!res.ok) toast.error(res.message || t('errorGeneric'));
-      else router.refresh();
+      else {
+        onFocus?.(row.id, 'open');
+        router.refresh();
+      }
     });
   };
+
+  // Scroll this card into view when it becomes the focus target. A callback ref
+  // fires the moment the card mounts in its new list (after `router.refresh()`
+  // moves it), so the scroll lands on the final position. `focusSeq` bumps on
+  // every complete/undo, so re-focusing the same card scrolls again.
+  const scrolledSeq = React.useRef(0);
+  const focusRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node || !focusActive || scrolledSeq.current === focusSeq) return;
+      scrolledSeq.current = focusSeq;
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    },
+    [focusActive, focusSeq],
+  );
 
   const onDelete = async () => {
     if (pending) return;
@@ -102,7 +138,13 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
   }
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
+    <Card
+      ref={focusRef}
+      className={cn(
+        'flex flex-col gap-3 p-4 transition-shadow',
+        focusActive && 'ring-2 ring-[var(--primary)]/60',
+      )}
+    >
       <div className="flex flex-col gap-1">
         <h3 className="text-base font-semibold leading-tight">{row.title}</h3>
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">

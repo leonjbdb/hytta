@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth/config';
 import { db } from '@/db/client';
 import { dugnadTasks } from '@/db/schema';
+import { isDemoMode } from '@/lib/demo-mode';
 
 export type DugnadActionResult<T = void> =
   | { ok: true; data: T }
@@ -41,7 +42,7 @@ function zodToIssues(err: z.ZodError): { path: string; message: string }[] {
 }
 
 function revalidateDugnad() {
-  revalidatePath('/dugnad', 'page');
+  revalidatePath('/volunteer', 'page');
 }
 
 export async function createDugnadAction(
@@ -77,6 +78,7 @@ export async function createDugnadAction(
     revalidateDugnad();
     return { ok: true, data: { id: row.id } };
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[dugnad] create failed', err);
     return { ok: false, code: 'UNKNOWN', message: 'Kunne ikke lagre oppgaven' };
   }
@@ -129,6 +131,7 @@ export async function updateDugnadAction(
     revalidateDugnad();
     return { ok: true, data: undefined };
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[dugnad] update failed', err);
     return { ok: false, code: 'UNKNOWN', message: 'Kunne ikke oppdatere oppgaven' };
   }
@@ -159,6 +162,7 @@ export async function deleteDugnadAction(id: string): Promise<DugnadActionResult
     revalidateDugnad();
     return { ok: true, data: undefined };
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[dugnad] delete failed', err);
     return { ok: false, code: 'UNKNOWN', message: 'Kunne ikke slette oppgaven' };
   }
@@ -199,6 +203,7 @@ export async function uncompleteDugnadAction(id: string): Promise<DugnadActionRe
     revalidateDugnad();
     return { ok: true, data: undefined };
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[dugnad] uncomplete failed', err);
     return { ok: false, code: 'UNKNOWN', message: 'Kunne ikke angre' };
   }
@@ -234,6 +239,7 @@ export async function completeDugnadAction(id: string): Promise<DugnadActionResu
     revalidateDugnad();
     return { ok: true, data: undefined };
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[dugnad] complete failed', err);
     return { ok: false, code: 'UNKNOWN', message: 'Kunne ikke markere som løst' };
   }
