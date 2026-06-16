@@ -145,8 +145,23 @@
        var(--rdp-day_button-border-radius) — rdp's unlayered default is 100%, which
        would size the concave square to the whole cell. */
     --hytta-range-concave-corner-size: calc(var(--radius) - 2px);
+    /* The range's fill + text colours, indirected through variables so the
+       hover-preview can recolour the *entire* range (fill, caps, concave ears,
+       row-edge fades) a lighter shade by only overriding these two — see
+       `.hytta-range-preview` below. Default = the committed green. */
+    --hytta-range-fill: var(--primary);
+    --hytta-range-text: var(--primary-foreground);
   }
 
+}
+
+/* Range hover-preview. While a start date is chosen but no end yet, the calendar
+   renders `selected = start→hovered day` and gets this class, lightening the
+   whole prospective range so it reads as a preview of the committed look. Reuses
+   every range rule — only the two colour variables change. */
+.rdp-root.hytta-range-preview {
+  --hytta-range-fill: color-mix(in oklch, var(--primary), var(--hytta-calendar-bg) 58%);
+  --hytta-range-text: var(--foreground);
 }
 
 .hytta-range-continues-after-week button,
@@ -167,13 +182,13 @@
 
 .hytta-range-concave-before-start,
 .rdp-root [role="gridcell"]:has(+ .hytta-range-start-continues-below) {
-  background: linear-gradient(var(--primary), var(--primary)) bottom right /
+  background: linear-gradient(var(--hytta-range-fill), var(--hytta-range-fill)) bottom right /
     var(--hytta-range-concave-corner-size) var(--hytta-range-concave-corner-size) no-repeat;
 }
 
 .hytta-range-concave-after-end,
 .rdp-root .hytta-range-end-continues-above + [role="gridcell"] {
-  background: linear-gradient(var(--primary), var(--primary)) top left /
+  background: linear-gradient(var(--hytta-range-fill), var(--hytta-range-fill)) top left /
     var(--hytta-range-concave-corner-size) var(--hytta-range-concave-corner-size) no-repeat;
 }
 

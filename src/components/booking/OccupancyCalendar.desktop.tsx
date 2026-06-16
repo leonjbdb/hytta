@@ -38,16 +38,32 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
 
   const occupancyContext = React.useMemo(
     // cellWidth 48 ≙ the `w-12` day cell below; sizes the room icons.
-    () => ({ byDay: occupancy, rooms, fullyBooked: fullyBookedSet, cellWidth: 48 }),
-    [occupancy, rooms, fullyBookedSet],
+    () => ({
+      byDay: occupancy,
+      rooms,
+      fullyBooked: fullyBookedSet,
+      cellWidth: 48,
+      onDayHover: ctrl.setHoverDate,
+    }),
+    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate],
   );
+
+  // While picking the end date, render (and recolour lighter) the range the
+  // hovered day would produce, reusing the committed range's own styling.
+  const rangeShown =
+    ctrl.previewRange ?? (selection.mode === 'range' ? selection.value : undefined);
+  // A range with a start but no end yet is "in progress" — show it (the lone
+  // start, or the hovered preview) in the lighter preview shade. It only turns
+  // the committed green once the end is clicked too.
+  const rangeIncomplete =
+    selection.mode === 'range' && Boolean(selection.value?.from) && !selection.value?.to;
 
   const dayPicker =
     selection.mode === 'range' ? (
       <DayPicker
         mode="range"
-        selected={selection.value}
-        modifiers={getRangeContinuationModifiers(selection.value, month)}
+        selected={rangeShown}
+        modifiers={getRangeContinuationModifiers(rangeShown, month)}
         modifiersClassNames={RANGE_CONTINUATION_CLASSNAMES}
         showOutsideDays
         onSelect={(_next, triggerDate) => ctrl.handleDayClick(triggerDate)}
@@ -58,7 +74,7 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
         locale={dpLocale}
         disabled={disablePast ? [{ before: new Date() }] : undefined}
         components={{ DayButton: CustomDayButton }}
-        className={cn('rdp-root mx-auto')}
+        className={cn('rdp-root mx-auto', rangeIncomplete && 'hytta-range-preview')}
         classNames={DESKTOP_CLASSNAMES}
       />
     ) : (
@@ -121,13 +137,13 @@ const DESKTOP_CLASSNAMES = {
   // Selected/range days keep their green on hover, just a shade darker (the
   // default muted-bg hover would wipe the green out).
   selected:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[var(--primary)]',
+    '[&_button]:bg-[var(--hytta-range-fill)] [&_button]:text-[var(--hytta-range-text)] [&_button]:hover:bg-[var(--hytta-range-fill)]',
   range_start:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[var(--primary)] [&_button]:rounded-l-md [&_button]:rounded-r-none [&:last-child_button]:rounded-r-md',
+    '[&_button]:bg-[var(--hytta-range-fill)] [&_button]:text-[var(--hytta-range-text)] [&_button]:hover:bg-[var(--hytta-range-fill)] [&_button]:rounded-l-md [&_button]:rounded-r-none [&:last-child_button]:rounded-r-md',
   range_end:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[var(--primary)] [&_button]:rounded-r-md [&_button]:rounded-l-none [&:first-child_button]:rounded-l-md',
+    '[&_button]:bg-[var(--hytta-range-fill)] [&_button]:text-[var(--hytta-range-text)] [&_button]:hover:bg-[var(--hytta-range-fill)] [&_button]:rounded-r-md [&_button]:rounded-l-none [&:first-child_button]:rounded-l-md',
   range_middle:
-    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:rounded-none [&:first-child_button]:rounded-l-md [&:last-child_button]:rounded-r-md',
+    '[&_button]:bg-[color-mix(in_oklch,var(--hytta-range-fill),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--hytta-range-fill),transparent_60%)] [&_button]:rounded-none [&:first-child_button]:rounded-l-md [&:last-child_button]:rounded-r-md',
   today: 'hytta-today',
   // Replace rdp's default `rdp-disabled` class (which sets opacity: 0.5 on the
   // whole cell) with an inert marker, so the cell — and its concave ear + hover

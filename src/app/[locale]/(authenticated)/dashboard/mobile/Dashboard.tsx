@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { CalendarPlus, Check, ChevronDown, ChevronRight, CircleCheck, Pencil, X } from 'lucide-react';
+import { CalendarPlus, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, CircleCheck, Pencil, RotateCcw, X } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { PersonBadge } from '@/components/PersonBadge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -45,6 +45,9 @@ export function Dashboard({
   const locale = useLocale();
   const [filter, setFilter] = React.useState<DashboardFilter>('mine');
   const [myStaysOnly, setMyStaysOnly] = React.useState(false);
+  // Bulk expand cycles: none → expanded → collapsed → none (reset, restoring each
+  // card's own open/closed state) → …
+  const [bulkExpand, setBulkExpand] = React.useState<'none' | 'expanded' | 'collapsed'>('none');
   const [pastOpen, setPastOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
   // The filter to restore when the date filter is cleared — captured the
@@ -80,6 +83,7 @@ export function Dashboard({
   const handleFilterChange = React.useCallback(
     (next: DashboardFilter) => {
       setFilter(next);
+      setBulkExpand('none');
       if (selectedDate) setFilterBeforeDate(null);
     },
     [selectedDate],
@@ -110,6 +114,7 @@ export function Dashboard({
       isManager={isManager}
       isAdmin={isAdmin}
       allowCancel={options.allowCancel}
+      bulkExpand={bulkExpand}
     />
   );
 
@@ -136,7 +141,7 @@ export function Dashboard({
 
       <FilterSegmented value={filter} onChange={handleFilterChange} />
 
-      {filter === 'mine' && (
+      {filter === 'mine' ? (
         <button
           type="button"
           aria-pressed={myStaysOnly}
@@ -157,6 +162,35 @@ export function Dashboard({
             {myStaysOnly && <Check className="size-2.5" />}
           </span>
           {t('filterMyStays')}
+        </button>
+      ) : (
+        <button
+          type="button"
+          aria-pressed={bulkExpand !== 'none'}
+          onClick={() =>
+            setBulkExpand((s) =>
+              s === 'none' ? 'expanded' : s === 'expanded' ? 'collapsed' : 'none',
+            )
+          }
+          className={
+            'inline-flex w-fit cursor-pointer items-center gap-2 self-start rounded-md border px-3 py-2 text-xs font-medium transition-colors ' +
+            (bulkExpand !== 'none'
+              ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
+              : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] active:bg-[var(--muted)]')
+          }
+        >
+          {bulkExpand === 'none' ? (
+            <ChevronsUpDown className="size-3.5" />
+          ) : bulkExpand === 'expanded' ? (
+            <ChevronsDownUp className="size-3.5" />
+          ) : (
+            <RotateCcw className="size-3.5" />
+          )}
+          {bulkExpand === 'none'
+            ? t('expandAll')
+            : bulkExpand === 'expanded'
+              ? t('collapseAll')
+              : t('reset')}
         </button>
       )}
 
@@ -246,12 +280,14 @@ function BookingGroupCard({
   isManager,
   isAdmin,
   allowCancel,
+  bulkExpand,
 }: {
   g: BookingGroup;
   viewerId: string;
   isManager: boolean;
   isAdmin: boolean;
   allowCancel: boolean;
+  bulkExpand: 'none' | 'expanded' | 'collapsed';
 }) {
   const t = useTranslations('Dashboard');
   const tBook = useTranslations('Book');
@@ -263,7 +299,30 @@ function BookingGroupCard({
   // Expand your own bookings (and your own pending requests). Others' pending
   // requests only auto-expand for managers — they're the ones who act on them;
   // for everyone else they start collapsed to keep the dashboard scannable.
-  const [open, setOpen] = React.useState(isMine || (g.pending && isManager));
+  const defaultOpen = isMine || (g.pending && isManager);
+  const [open, setOpen] = React.useState(
+    bulkExpand === 'expanded' ? true : bulkExpand === 'collapsed' ? false : defaultOpen,
+  );
+  // "Expand all" cycles every card: expand → collapse → reset. Reset restores the
+  // open/closed state each card had before the cycle (snapshotted when it began).
+  // A normal header click still toggles just this card, and persists through a cycle.
+  const openRef = React.useRef(open);
+  openRef.current = open;
+  const beforeCycle = React.useRef(defaultOpen);
+  const prevBulk = React.useRef(bulkExpand);
+  React.useEffect(() => {
+    const prev = prevBulk.current;
+    prevBulk.current = bulkExpand;
+    if (bulkExpand === prev) return;
+    if (bulkExpand === 'expanded') {
+      if (prev === 'none') beforeCycle.current = openRef.current;
+      setOpen(true);
+    } else if (bulkExpand === 'collapsed') {
+      setOpen(false);
+    } else {
+      setOpen(beforeCycle.current);
+    }
+  }, [bulkExpand]);
 
   const canModify = isViewerBooker || isAdmin;
   const canDelete = isViewerBooker || isAdmin || isManager;

@@ -97,6 +97,11 @@ export interface OccupancyContextShape {
   fullyBooked: Set<string>;
   /** Day-cell width in px — drives how big the room icons can be drawn. */
   cellWidth: number;
+  /**
+   * Reports the day under the pointer (or `null` on leave), so a range
+   * selection with a start but no end yet can preview where it would extend to.
+   */
+  onDayHover?: (date: Date | null) => void;
 }
 
 export const OccupancyContext = React.createContext<OccupancyContextShape>({
@@ -232,34 +237,45 @@ export function getRangeContinuationModifiers(range: DateRange | undefined, disp
       if (!fromDate || !to || fromDate.getDay() === WEEK_START_DAY) return false;
       if (!inDisplayedMonth(fromDate)) return false;
       if (toISODate(date) !== toISODate(addDays(fromDate, -1))) return false;
-      const below = addDays(date, 7);
+      // Only smooth the corner when the range continues DIRECTLY below the start
+      // (start+7 in range) — i.e. there's a real vertical band. If the row below
+      // only reaches start−1's column (range ends below-left of the start), the
+      // ear would be a stray diagonal nub, so skip it. Mirrors
+      // `rangeStartContinuesBelow`.
+      const below = addDays(fromDate, 7);
       return toISODate(below) <= to && inDisplayedMonth(below);
     },
     rangeConcaveAfterEnd: (date: Date) => {
       if (!toDate || !from || toDate.getDay() === WEEK_END_DAY) return false;
       if (!inDisplayedMonth(toDate)) return false;
       if (toISODate(date) !== toISODate(addDays(toDate, 1))) return false;
-      const above = addDays(date, -7);
+      // Only smooth the corner when the range continues DIRECTLY above the end
+      // (end−7 in range). If the row above only reaches end+1's column (range
+      // starts above-right of the end), the ear is a stray diagonal nub. Mirrors
+      // `rangeEndContinuesAbove`.
+      const above = addDays(toDate, -7);
       return toISODate(above) >= from && inDisplayedMonth(above);
     },
   };
 }
 
 /**
- * Count days in the inclusive range [from, to] that are fully booked (whole
- * cottage taken, or every slot filled). A stay occupies every day in the
- * range — `daysInRange` is inclusive — so any fully-booked day in between
- * makes the whole range unbookable.
+ * The ISO dates in the inclusive range [from, to] that are fully booked (whole
+ * cottage taken, or every slot filled), in order. A stay occupies every day in
+ * the range — `daysInRange` is inclusive — so any fully-booked day in between
+ * makes the whole range unbookable; the caller lists them so the user knows
+ * exactly which days to avoid.
  */
-function fullyBookedDaysInRange(from: Date, to: Date, fullyBooked: Set<string>): number {
-  let count = 0;
+function fullyBookedDatesInRange(from: Date, to: Date, fullyBooked: Set<string>): string[] {
+  const out: string[] = [];
   const cur = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
   while (cur <= end) {
-    if (fullyBooked.has(toISODate(cur))) count += 1;
+    const iso = toISODate(cur);
+    if (fullyBooked.has(iso)) out.push(iso);
     cur.setDate(cur.getDate() + 1);
   }
-  return count;
+  return out;
 }
 
 /* ------------------------------ controller ----------------------------- */
@@ -277,6 +293,16 @@ export interface OccupancyCalendarController {
    * Dispatches based on `selection.mode` and `fullyBookedAction`.
    */
   handleDayClick: (date: Date | undefined) => void;
+  /** Set the hovered day (range preview). Wire to the calendar's `onDayHover`. */
+  setHoverDate: (date: Date | null) => void;
+  /**
+   * The range the calendar should *display* while a start is chosen but no end:
+   * `{ from: chosen start, to: hovered day }`. `null` whenever there's nothing
+   * to preview (no start, end already chosen, hovering before the start, or the
+   * hovered span crosses a fully-booked day). Variants render this as the
+   * `selected` range — recoloured lighter — so it reads as a preview.
+   */
+  previewRange: { from: Date; to: Date } | null;
 }
 
 /**
@@ -294,6 +320,7 @@ export function useOccupancyCalendar({
   onMonthChange,
 }: OccupancyCalendarProps): OccupancyCalendarController {
   const t = useTranslations('Book');
+  const locale = useLocale();
   const [internalMonth, setInternalMonth] = React.useState<Date>(() => startOfMonth(new Date()));
   const month = monthProp ?? internalMonth;
   const setMonth = React.useCallback(
@@ -305,6 +332,7 @@ export function useOccupancyCalendar({
   );
   const [occupancy, setOccupancy] = React.useState<Map<string, DayInfo>>(new Map());
   const [detailsDate, setDetailsDate] = React.useState<Date | null>(null);
+  const [hoverDate, setHoverDate] = React.useState<Date | null>(null);
 
   const loadOccupancy = React.useCallback(() => {
     let cancelled = false;
@@ -362,8 +390,24 @@ export function useOccupancyCalendar({
     return occupancy.get(toISODate(detailsDate))?.assignments ?? [];
   }, [detailsDate, occupancy]);
 
+  // While a range has a start but no end, preview where it would land if the
+  // hovered day were clicked. Mirrors the click rules in `handleDayClick`: the
+  // hover must be after the start and the span must be free of fully-booked
+  // days (clicking such a span is rejected, so previewing it would mislead).
+  const previewRange = React.useMemo<{ from: Date; to: Date } | null>(() => {
+    if (selection.mode !== 'range') return null;
+    const from = selection.value?.from;
+    if (!from || selection.value?.to || !hoverDate) return null;
+    if (toISODate(hoverDate) <= toISODate(from)) return null;
+    if (fullyBookedDatesInRange(from, hoverDate, fullyBookedSet).length > 0) return null;
+    return { from, to: hoverDate };
+  }, [selection, hoverDate, fullyBookedSet]);
+
   const handleDayClick = React.useCallback(
     (date: Date | undefined) => {
+      // A click resolves the selection — drop any hover preview so the
+      // committed range isn't briefly drawn over by a stale preview.
+      setHoverDate(null);
       if (!date) return;
       if (fullyBookedSet.has(toISODate(date)) && fullyBookedAction === 'details') {
         setDetailsDate(date);
@@ -386,12 +430,23 @@ export function useOccupancyCalendar({
           return;
         }
         // Reject a range that spans any fully-booked day — the whole cottage is
-        // taken on those dates, so a stay covering them can't be booked.
-        const blocked = fullyBookedDaysInRange(f, date, fullyBookedSet);
-        if (blocked > 0) {
+        // taken on those dates, so a stay covering them can't be booked. Clear
+        // the selection entirely (not just ignore the click), so the next click
+        // begins a fresh start date rather than re-extending the old one.
+        const blocked = fullyBookedDatesInRange(f, date, fullyBookedSet);
+        if (blocked.length > 0) {
+          const days = blocked
+            .map((iso) =>
+              new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale, {
+                day: 'numeric',
+                month: 'short',
+              }),
+            )
+            .join(', ');
           toast.warning(t('rangeBlockedTitle'), {
-            description: t('rangeBlockedBody', { count: blocked }),
+            description: t('rangeBlockedBody', { count: blocked.length, days }),
           });
+          selection.onChange(undefined);
           return;
         }
         selection.onChange({ from: f, to: date });
@@ -405,7 +460,7 @@ export function useOccupancyCalendar({
       }
       selection.onChange(date);
     },
-    [selection, fullyBookedSet, fullyBookedAction, t],
+    [selection, fullyBookedSet, fullyBookedAction, t, locale],
   );
 
   return {
@@ -417,6 +472,8 @@ export function useOccupancyCalendar({
     setDetailsDate,
     detailsAssignments,
     handleDayClick,
+    setHoverDate,
+    previewRange,
   };
 }
 
@@ -470,7 +527,7 @@ function buildDayTooltipGroups(
 
 export function CustomDayButton(props: DayButtonProps) {
   const { day, modifiers, className, ...buttonProps } = props;
-  const { byDay, rooms, fullyBooked, cellWidth } = React.useContext(OccupancyContext);
+  const { byDay, rooms, fullyBooked, cellWidth, onDayHover } = React.useContext(OccupancyContext);
   const t = useTranslations('Book');
   const locale = useLocale();
   const iso = toISODate(day.date);
@@ -515,6 +572,14 @@ export function CustomDayButton(props: DayButtonProps) {
     <button
       {...buttonProps}
       aria-label={ariaLabel}
+      onMouseEnter={(e) => {
+        buttonProps.onMouseEnter?.(e);
+        onDayHover?.(day.date);
+      }}
+      onMouseLeave={(e) => {
+        buttonProps.onMouseLeave?.(e);
+        onDayHover?.(null);
+      }}
       className={cn(
         className,
         'group relative flex flex-col items-center justify-center gap-0.5',

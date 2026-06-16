@@ -136,7 +136,7 @@
     "slotsUsedUnlimited": "{count, plural, one {# person} other {# personer}}",
     "noDates": "Velg innsjekks- og utsjekksdato i kalenderen.",
     "rangeBlockedTitle": "Disse datoene er ikke ledige",
-    "rangeBlockedBody": "{count, plural, one {# dag i perioden er fullbooket} other {# dager i perioden er fullbooket}} — velg datoer uten denne.",
+    "rangeBlockedBody": "{count, plural, one {{days} er fullbooket} other {Disse dagene er fullbooket: {days}}} — velg datoer uten {count, plural, one {den} other {dem}}.",
     "summaryTitle": "Sammendrag",
     "summaryNoSelection": "Velg datoer og minst ett område eller seng.",
     "daysCount": "{days, plural, one {# dag} other {# dager}}",
@@ -188,6 +188,9 @@
     "filterBooked": "Andre",
     "filterAll": "Alle",
     "filterMyStays": "Mine opphold",
+    "expandAll": "Utvid alle",
+    "collapseAll": "Skjul alle",
+    "reset": "Tilbakestill",
     "dateFilterLabel": "På",
     "dateFilterClear": "Fjern dato",
     "dateFilterEmpty": "Ingen reservasjoner denne dagen."

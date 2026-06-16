@@ -136,7 +136,7 @@
     "slotsUsedUnlimited": "{count, plural, one {# person} other {# people}}",
     "noDates": "Choose check-in and check-out dates in the calendar.",
     "rangeBlockedTitle": "Those dates aren't available",
-    "rangeBlockedBody": "{count, plural, one {# day in that range is fully booked} other {# days in that range are fully booked}} — pick dates that don't include it.",
+    "rangeBlockedBody": "{count, plural, one {{days} is fully booked} other {These days are fully booked: {days}}} — pick dates that don't include {count, plural, one {it} other {them}}.",
     "summaryTitle": "Summary",
     "summaryNoSelection": "Choose dates and at least one area or bed.",
     "daysCount": "{days, plural, one {# day} other {# days}}",
@@ -188,6 +188,9 @@
     "filterBooked": "Others",
     "filterAll": "All",
     "filterMyStays": "My Stays",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "reset": "Reset",
     "dateFilterLabel": "On",
     "dateFilterClear": "Clear date",
     "dateFilterEmpty": "No bookings on this day."
