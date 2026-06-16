@@ -1,5 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  // Remote scripts replace this account-neutral name with HYTTA_WORKER_NAME in
+  // ignored wrangler.local.jsonc files.
   "name": "hytta",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-01",
@@ -23,6 +25,7 @@
   // migration lives in that worker's config, not here.
   "durable_objects": {
     "bindings": [
+      // Remote scripts replace script_name with `${HYTTA_WORKER_NAME}-booking-do`.
       { "name": "BOOKING", "class_name": "BookingDO", "script_name": "hytta-booking-do" }
     ]
   }

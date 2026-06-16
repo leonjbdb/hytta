@@ -190,6 +190,7 @@ to boot otherwise.
 
 | Var                   | Source / notes                                                |
 | --------------------- | ------------------------------------------------------------- |
+| `HYTTA_WORKER_NAME`   | Cloudflare Worker project name, e.g. `bekkeholt`             |
 | `HYTTA_D1_DATABASE_ID` | Cloudflare D1 UUID from `wrangler d1 create hytta`           |
 | `AUTH_SECRET`         | `openssl rand -base64 32`                                     |
 | `AUTH_URL`            | Public origin in production, e.g. `https://hytta.example.com` |
@@ -199,9 +200,10 @@ to boot otherwise.
 | `ADMIN_EMAILS`        | Optional comma-separated admin auto-promotion list            |
 | `TEST_USER_*`         | Optional env-managed test account                            |
 
-`HYTTA_D1_DATABASE_ID` is not committed to Wrangler config. Remote scripts read
-it from `.env.local` (or the shell environment), generate ignored
-`wrangler.local.jsonc` files, and pass those files to Wrangler/OpenNext.
+`HYTTA_WORKER_NAME` and `HYTTA_D1_DATABASE_ID` are not committed to Wrangler
+config. Remote scripts read them from `.env.local` (or the shell environment),
+generate ignored `wrangler.local.jsonc` files, and pass those files to
+Wrangler/OpenNext.
 
 ### Cloudflare Workers deployment
 
@@ -214,13 +216,18 @@ GitHub deployment with these commands:
 | Deploy command | `bun run deploy` |
 
 `bun run build` generates the account-local Wrangler config from
-`HYTTA_D1_DATABASE_ID` and runs `opennextjs-cloudflare build`, producing
-`.open-next`.
+`HYTTA_WORKER_NAME` and `HYTTA_D1_DATABASE_ID`, then runs
+`opennextjs-cloudflare build`, producing `.open-next`.
 
 `bun run deploy` deploys the Booking Durable Object worker, then runs
 `opennextjs-cloudflare deploy` for the already-built app worker. If `.open-next`
 is missing, deploy fails instead of building. Cloudflare Workers do not have a
 long-running runtime start command after deployment.
+
+For a project named `bekkeholt`, set `HYTTA_WORKER_NAME=bekkeholt`. The app
+Worker deploys as `bekkeholt`, and the Durable Object worker deploys as
+`bekkeholt-booking-do`. The cottage display name is still set later in `/setup`
+and stored in D1.
 
 ## Scripts
 
