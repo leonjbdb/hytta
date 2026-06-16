@@ -177,6 +177,15 @@
   background: var(--hytta-calendar-bg);
 }
 
+/* Restore the normal hover — the unlayered rule above otherwise beats the
+   layered Tailwind `hover:bg-*` utility, so these cells looked inert. */
+.hytta-range-concave-before-start button:hover,
+.hytta-range-concave-after-end button:hover,
+.rdp-root [role="gridcell"]:has(+ .hytta-range-start-continues-below) > button:hover,
+.rdp-root .hytta-range-end-continues-above + [role="gridcell"] > button:hover {
+  background: var(--muted);
+}
+
 .hytta-range-continues-after-week button::after,
 .hytta-range-continues-before-week button::before {
   content: "";

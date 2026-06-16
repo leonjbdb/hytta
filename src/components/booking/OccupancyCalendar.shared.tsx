@@ -149,10 +149,16 @@ const WEEK_END_DAY = 0; // Sunday.
 export const RANGE_CONTINUATION_CLASSNAMES = {
   rangeContinuesAfterWeek: 'hytta-range-continues-after-week',
   rangeContinuesBeforeWeek: 'hytta-range-continues-before-week',
-  rangeStartContinuesBelow: '[&_button]:!rounded-bl-none',
-  rangeEndContinuesAbove: '[&_button]:!rounded-tr-none',
-  rangeConcaveBeforeStart: 'hytta-range-concave-before-start',
-  rangeConcaveAfterEnd: 'hytta-range-concave-after-end',
+  rangeStartContinuesBelow: 'hytta-range-start-continues-below [&_button]:!rounded-bl-none',
+  rangeEndContinuesAbove: 'hytta-range-end-continues-above [&_button]:!rounded-tr-none',
+  // Concave cells round the button only at the corner that meets the range, so
+  // the green "ear" appears on that one corner and the other three sit flush
+  // against their neighbours (no stray notches). before-start → bottom-right;
+  // after-end → top-left.
+  rangeConcaveBeforeStart:
+    'hytta-range-concave-before-start [&_button]:!rounded-tl-none [&_button]:!rounded-tr-none [&_button]:!rounded-bl-none',
+  rangeConcaveAfterEnd:
+    'hytta-range-concave-after-end [&_button]:!rounded-tr-none [&_button]:!rounded-bl-none [&_button]:!rounded-br-none',
 };
 
 export function getRangeContinuationModifiers(range: DateRange | undefined) {
