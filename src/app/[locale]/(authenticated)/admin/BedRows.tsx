@@ -64,6 +64,8 @@ export function BedRows({
                   variant="ghost"
                   size="sm"
                   className="ml-auto"
+                  aria-label={t('removeBed')}
+                  title={t('removeBed')}
                   disabled={disabled || removingId === bed.id}
                   onClick={() => onRemove(bed.id)}
                 >

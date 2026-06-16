@@ -21,6 +21,7 @@ export function PersonBadge({
   isAdmin = false,
   isManager = false,
   when,
+  size = 'sm',
 }: {
   name: string;
   isGuest: boolean;
@@ -31,7 +32,11 @@ export function PersonBadge({
   /** Optional second tooltip line — e.g. a stay's date range ("when"). Shown in
    *  addition to the role, not instead of it. */
   when?: string;
+  /** `lg` bumps the text + icon for denser screens like the admin user list. */
+  size?: 'sm' | 'lg';
 }) {
+  const large = size === 'lg';
+  const iconClass = `${large ? 'size-4' : 'size-3.5'} shrink-0`;
   const t = useTranslations('Common');
   // Guests are always "Guest". Members show their elevated roles (Admin and/or
   // Manager), falling back to plain "Member" when they hold neither.
@@ -60,15 +65,16 @@ export function PersonBadge({
       }}
       className={
         'group relative cursor-pointer select-none ' +
+        (large ? 'gap-1.5 text-sm ' : '') +
         (highlight
           ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
           : 'text-[var(--muted-foreground)]')
       }
     >
       {isGuest ? (
-        <UserRound aria-hidden className="size-3.5 shrink-0 opacity-70" />
+        <UserRound aria-hidden className={`${iconClass} opacity-70`} />
       ) : (
-        <User aria-hidden className="size-3.5 shrink-0" />
+        <User aria-hidden className={iconClass} />
       )}
       {name}
       <span

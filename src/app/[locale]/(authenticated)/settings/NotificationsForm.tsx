@@ -41,7 +41,7 @@ export function NotificationsForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{t('notificationsHeading')}</CardTitle>
+        <CardTitle as="h2" className="text-base">{t('notificationsHeading')}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ToggleRow
@@ -97,20 +97,25 @@ function ToggleRow({
   checked: boolean;
   onChange: () => void;
 }) {
+  // The whole row is the switch: a single role="switch" button (named by its
+  // text content) rather than a <label> wrapping a separate button — a <label>
+  // can't associate with a custom switch widget, so it was orphaned.
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4">
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      className="flex w-full cursor-pointer items-start justify-between gap-4 text-left"
+    >
       <span className="flex flex-col gap-0.5">
         <span className="text-sm font-medium">{label}</span>
-        <span className="text-xs text-[var(--muted-foreground)]">{hint}</span>
+        <span className="text-xs font-normal text-[var(--muted-foreground)]">{hint}</span>
       </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        onClick={onChange}
+      <span
+        aria-hidden
         className={
-          'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ' +
+          'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ' +
           (checked ? 'bg-[var(--primary)]' : 'bg-[var(--muted)] border border-[var(--border)]')
         }
       >
@@ -120,7 +125,7 @@ function ToggleRow({
             (checked ? 'translate-x-5' : 'translate-x-0.5')
           }
         />
-      </button>
-    </label>
+      </span>
+    </button>
   );
 }

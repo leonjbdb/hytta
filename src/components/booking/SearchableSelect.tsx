@@ -54,6 +54,10 @@ export function SearchableSelect({
   // an exact-name member via allowCustom) rather than the first suggestion. You
   // pick a suggestion explicitly with ArrowDown/Tab to highlight it, then Enter.
   const [highlight, setHighlight] = React.useState(-1);
+  // Associates the (optional) label with the trigger/input via aria-labelledby.
+  // A wrapping <label> would be orphaned here — the control is a composite
+  // button/input combobox, not a single labelable form element.
+  const labelId = React.useId();
   const rootRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   // Always-fresh "what to do when leaving the field" — read by the document
@@ -172,6 +176,7 @@ export function SearchableSelect({
           }}
           onKeyDown={onKeyDown}
           onBlur={onBlurCommit}
+          aria-labelledby={label ? labelId : undefined}
           aria-autocomplete="list"
           aria-expanded
           className={cn(
@@ -183,6 +188,7 @@ export function SearchableSelect({
         <button
           type="button"
           aria-haspopup="listbox"
+          aria-labelledby={label ? labelId : undefined}
           onClick={() => {
             setOpen(true);
             // Seed the filter with the current free-form text so it can be
@@ -242,9 +248,9 @@ export function SearchableSelect({
   if (!label) return field;
 
   return (
-    <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
-      {label}
+    <div className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
+      <span id={labelId}>{label}</span>
       {field}
-    </label>
+    </div>
   );
 }

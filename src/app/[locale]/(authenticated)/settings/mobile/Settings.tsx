@@ -64,7 +64,7 @@ function NameForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{t('nameHeading')}</CardTitle>
+        <CardTitle as="h2" className="text-base">{t('nameHeading')}</CardTitle>
       </CardHeader>
       <CardContent>
         <form
@@ -118,7 +118,7 @@ function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">
+        <CardTitle as="h2" className="text-base">
           {hasPassword ? t('passwordHeading') : t('passwordSetHeading')}
         </CardTitle>
       </CardHeader>

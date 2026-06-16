@@ -209,6 +209,8 @@ function EditForm({
   onSaved: () => void;
 }) {
   const t = useTranslations('Dugnad');
+  const titleId = React.useId();
+  const descriptionId = React.useId();
   const [title, setTitle] = React.useState(row.title);
   const [description, setDescription] = React.useState(row.description);
   const [pending, startTransition] = React.useTransition();
@@ -226,22 +228,34 @@ function EditForm({
   return (
     <Card className="flex flex-col gap-3 p-4">
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={120}
-          required
-          className="h-10 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-        />
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={8}
-          maxLength={5000}
-          required
-          className="resize-y rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-        />
+        <div className="flex flex-col gap-1">
+          <label htmlFor={titleId} className="text-xs font-medium">
+            {t('newTitleLabel')}
+          </label>
+          <input
+            id={titleId}
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={120}
+            required
+            className="h-10 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor={descriptionId} className="text-xs font-medium">
+            {t('newDescriptionLabel')}
+          </label>
+          <textarea
+            id={descriptionId}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={8}
+            maxLength={5000}
+            required
+            className="resize-y rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+          />
+        </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
             {t('cancelEdit')}

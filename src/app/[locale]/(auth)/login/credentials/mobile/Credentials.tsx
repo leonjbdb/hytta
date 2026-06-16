@@ -10,7 +10,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,10 +22,12 @@ export function Credentials() {
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="mt-6 flex flex-col gap-4 px-2">
-      <Card>
+    <div className="flex w-full justify-center px-2 py-4">
+      <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>{t('credentialsTitle')}</CardTitle>
+          <h1 className="text-xl font-semibold leading-tight tracking-tight">
+            {t('credentialsTitle')}
+          </h1>
           <CardDescription>{t('credentialsSubtitle')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

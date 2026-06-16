@@ -5,14 +5,17 @@ import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/style.css';
 import { nb, enGB } from 'date-fns/locale';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SearchableSelect } from './SearchableSelect';
 import { DayDetailsDialog } from './DayDetailsDialog';
 import {
   CustomDayButton,
   OccupancyContext,
+  RANGE_CONTINUATION_CLASSNAMES,
   RoomLegend,
   addMonths,
+  getRangeContinuationModifiers,
   startOfMonth,
   startOfToday,
   useOccupancyCalendar,
@@ -34,8 +37,9 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
   const { month, setMonth, occupancy, fullyBookedSet, detailsDate, detailsAssignments } = ctrl;
 
   const occupancyContext = React.useMemo(
-    // cellWidth 36 ≙ the `w-9` day cell below; sizes the room icons.
-    () => ({ byDay: occupancy, rooms, fullyBooked: fullyBookedSet, cellWidth: 36 }),
+    // Cells are now responsive (1/7 of the grid); ~48 is a representative width
+    // for sizing the room icons (the icon size is clamped anyway).
+    () => ({ byDay: occupancy, rooms, fullyBooked: fullyBookedSet, cellWidth: 48 }),
     [occupancy, rooms, fullyBookedSet],
   );
 
@@ -44,6 +48,8 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
       <DayPicker
         mode="range"
         selected={selection.value}
+        modifiers={getRangeContinuationModifiers(selection.value)}
+        modifiersClassNames={RANGE_CONTINUATION_CLASSNAMES}
         onSelect={(_next, triggerDate) => ctrl.handleDayClick(triggerDate)}
         month={month}
         onMonthChange={setMonth}
@@ -52,7 +58,7 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
         locale={dpLocale}
         disabled={disablePast ? [{ before: new Date() }] : undefined}
         components={{ DayButton: CustomDayButton }}
-        className={cn('rdp-root mx-auto')}
+        className={cn('rdp-root mx-auto w-full max-w-sm')}
         classNames={MOBILE_CLASSNAMES}
       />
     ) : (
@@ -67,7 +73,7 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
         locale={dpLocale}
         disabled={disablePast ? [{ before: new Date() }] : undefined}
         components={{ DayButton: CustomDayButton }}
-        className={cn('rdp-root mx-auto')}
+        className={cn('rdp-root mx-auto w-full max-w-sm')}
         classNames={MOBILE_CLASSNAMES}
       />
     );
@@ -79,6 +85,8 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
           month={month}
           onMonthChange={setMonth}
           locale={locale}
+          monthLabel={t('monthLabel')}
+          yearLabel={t('yearLabel')}
           prevLabel={t('prevMonth')}
           nextLabel={t('nextMonth')}
           todayLabel={t('today')}
@@ -107,24 +115,28 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
 // cells abut — that's what makes the range fill connect visually. We only
 // override sizes; layout itself is left to day-picker.
 const MOBILE_CLASSNAMES = {
-  months: 'flex',
+  months: 'flex w-full',
+  month: 'w-full',
+  // Full-width table with seven equal columns, so the grid fills the available
+  // width instead of a fixed cell size.
+  month_grid: 'w-full table-fixed',
   month_caption: 'hidden',
   nav: 'hidden',
   weekday:
-    'text-[var(--muted-foreground)] w-9 text-[10px] font-medium uppercase tracking-wide pb-1',
-  day: 'h-10 w-9 p-0 text-center text-sm align-middle relative',
+    'text-[var(--muted-foreground)] text-[10px] font-medium uppercase tracking-wide pb-1',
+  day: 'h-10 p-0 text-center text-sm align-middle relative',
   day_button:
-    'inline-flex h-10 w-9 items-center justify-center rounded-md transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+    'inline-flex h-10 w-full items-center justify-center rounded-md transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
   // Selected/range days keep their green on hover, just a shade darker (the
   // default muted-bg hover would wipe the green out).
   selected:
     '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)]',
   range_start:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-l-md [&_button]:rounded-r-none',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-l-md [&_button]:rounded-r-none [&:last-child_button]:rounded-r-md',
   range_end:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-r-md [&_button]:rounded-l-none',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-r-md [&_button]:rounded-l-none [&:first-child_button]:rounded-l-md',
   range_middle:
-    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,color-mix(in_oklch,var(--primary),transparent_60%),black_20%)] [&_button]:rounded-none',
+    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,color-mix(in_oklch,var(--primary),transparent_60%),black_20%)] [&_button]:rounded-none [&:first-child_button]:rounded-l-md [&:last-child_button]:rounded-r-md',
   today: 'hytta-today',
   disabled: 'opacity-30',
   outside: 'opacity-0',
@@ -134,6 +146,8 @@ function CalendarHeader({
   month,
   onMonthChange,
   locale,
+  monthLabel,
+  yearLabel,
   prevLabel,
   nextLabel,
   todayLabel,
@@ -141,6 +155,8 @@ function CalendarHeader({
   month: Date;
   onMonthChange: (d: Date) => void;
   locale: string;
+  monthLabel: string;
+  yearLabel: string;
   prevLabel: string;
   nextLabel: string;
   todayLabel: string;
@@ -148,29 +164,67 @@ function CalendarHeader({
   const today = startOfToday();
   const isCurrentMonth =
     month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
-  const [pickerOpen, setPickerOpen] = React.useState(false);
 
-  // "May 2026" / "mai 2026" — single string keeps the bar narrow.
-  const monthYear = React.useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(month),
-    [locale, month],
-  );
-
-  // Short month names for the 3×4 picker grid (e.g. "Jan", "Feb").
-  const monthNames = React.useMemo(() => {
-    const fmt = new Intl.DateTimeFormat(locale, { month: 'short' });
-    return Array.from({ length: 12 }, (_, i) => fmt.format(new Date(2024, i, 1)));
+  // Full month names for the month select.
+  const monthOptions = React.useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(locale, { month: 'long' });
+    return Array.from({ length: 12 }, (_, i) => ({
+      id: String(i),
+      name: fmt.format(new Date(2024, i, 1)),
+    }));
   }, [locale]);
 
+  // Suggested years: today + next 5. Past / far-future years stay reachable by
+  // typing into the field (`allowCustom`).
+  const baseYear = today.getFullYear();
+  const yearOptions = React.useMemo(
+    () =>
+      Array.from({ length: 6 }, (_, i) => ({
+        id: String(baseYear + i),
+        name: String(baseYear + i),
+      })),
+    [baseYear],
+  );
+
+  const setMonthIdx = (idx: number) => onMonthChange(new Date(month.getFullYear(), idx, 1));
   const setYear = (y: number) => onMonthChange(new Date(y, month.getMonth(), 1));
-  const setMonthIdx = (idx: number) => {
-    onMonthChange(new Date(month.getFullYear(), idx, 1));
-    setPickerOpen(false);
-  };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="mx-auto flex w-full max-w-sm flex-col gap-2">
+      {/* Same width as the day grid below (full width, capped at max-w-sm so it
+          doesn't stretch on a wide/landscape card). Month + year selects: the
+          month fills the row, the year is fixed. */}
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <SearchableSelect
+            label={monthLabel}
+            options={monthOptions}
+            value={String(month.getMonth())}
+            onChange={(id) => setMonthIdx(Number(id))}
+            allowCustom={(q) => {
+              const n = Number(q);
+              if (!Number.isInteger(n) || n < 1 || n > 12) return null;
+              return String(n - 1);
+            }}
+          />
+        </div>
+        <div className="w-20 shrink-0">
+          <SearchableSelect
+            label={yearLabel}
+            options={yearOptions}
+            value={String(month.getFullYear())}
+            onChange={(id) => setYear(Number(id))}
+            allowCustom={(q) => {
+              const n = Number(q);
+              if (!Number.isInteger(n) || n < 1970 || n > 2999) return null;
+              return String(n);
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Step a month at a time, or jump back to the current month. The Today
+          button flexes to fill the row, so it spans the grid width too. */}
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -180,19 +234,14 @@ function CalendarHeader({
         >
           <ChevronLeft className="size-4" />
         </button>
-
         <button
           type="button"
-          onClick={() => setPickerOpen((v) => !v)}
-          aria-expanded={pickerOpen}
-          className="flex flex-1 items-center justify-center gap-1 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-sm font-medium capitalize active:bg-[var(--muted)]"
+          onClick={() => onMonthChange(startOfMonth(today))}
+          disabled={isCurrentMonth}
+          className="inline-flex h-9 flex-1 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] text-xs font-medium active:bg-[var(--muted)] disabled:opacity-40"
         >
-          {monthYear}
-          <ChevronDown
-            className={cn('size-3.5 transition-transform', pickerOpen && 'rotate-180')}
-          />
+          {todayLabel}
         </button>
-
         <button
           type="button"
           aria-label={nextLabel}
@@ -201,62 +250,7 @@ function CalendarHeader({
         >
           <ChevronRight className="size-4" />
         </button>
-
-        <button
-          type="button"
-          onClick={() => onMonthChange(startOfMonth(today))}
-          disabled={isCurrentMonth}
-          className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-xs font-medium active:bg-[var(--muted)] disabled:opacity-40"
-        >
-          {todayLabel}
-        </button>
       </div>
-
-      {pickerOpen && (
-        <div className="flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--card)] p-2">
-          <div className="flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setYear(month.getFullYear() - 1)}
-              className="inline-flex size-8 items-center justify-center rounded-md hover:bg-[var(--muted)]"
-              aria-label={`${month.getFullYear() - 1}`}
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <span className="min-w-[3rem] text-center text-sm font-semibold tabular-nums">
-              {month.getFullYear()}
-            </span>
-            <button
-              type="button"
-              onClick={() => setYear(month.getFullYear() + 1)}
-              className="inline-flex size-8 items-center justify-center rounded-md hover:bg-[var(--muted)]"
-              aria-label={`${month.getFullYear() + 1}`}
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-          <div className="grid grid-cols-4 gap-1">
-            {monthNames.map((name, idx) => {
-              const active = idx === month.getMonth();
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setMonthIdx(idx)}
-                  className={cn(
-                    'rounded-md px-2 py-2 text-xs font-medium capitalize',
-                    active
-                      ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-                      : 'text-[var(--foreground)] hover:bg-[var(--muted)]',
-                  )}
-                >
-                  {name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -14,20 +14,22 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { COTTAGE_DESCRIPTION_MAX, COTTAGE_NAME_MAX } from '@/lib/cottage-limits';
 import { completeCottageSetup } from '@/server/actions/cottage';
 
-const NAME_MAX = 60;
 const PART_MAX = 80;
 
 /**
  * First-run setup, in two steps:
- *   1. Name the app (cottage).
+ *   1. Name and describe the app (cottage).
  *   2. Who's the admin — their email + first/last name.
  */
 export function SetupForm() {
   const t = useTranslations('Setup');
   const [step, setStep] = React.useState<1 | 2>(1);
   const [name, setName] = React.useState('');
+  const [description, setDescription] = React.useState('');
   const [adminEmail, setAdminEmail] = React.useState('');
   const [firstName, setFirstName] = React.useState('');
   const [lastName, setLastName] = React.useState('');
@@ -43,6 +45,7 @@ export function SetupForm() {
     startTransition(async () => {
       const fd = new FormData();
       fd.set('name', name);
+      fd.set('description', description);
       fd.set('adminEmail', adminEmail);
       fd.set('firstName', firstName);
       fd.set('lastName', lastName);
@@ -88,20 +91,37 @@ export function SetupForm() {
           }}
         >
           {step === 1 ? (
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="cottage-name">{t('nameLabel')}</Label>
-              <Input
-                id="cottage-name"
-                name="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('namePlaceholder')}
-                required
-                maxLength={NAME_MAX}
-                autoFocus
-                autoComplete="off"
-              />
-            </div>
+            <>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="cottage-name">{t('nameLabel')}</Label>
+                <Input
+                  id="cottage-name"
+                  name="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('namePlaceholder')}
+                  required
+                  maxLength={COTTAGE_NAME_MAX}
+                  autoFocus
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="cottage-description">{t('descriptionLabel')}</Label>
+                <Textarea
+                  id="cottage-description"
+                  name="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t('descriptionPlaceholder')}
+                  maxLength={COTTAGE_DESCRIPTION_MAX}
+                  rows={3}
+                />
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {t('descriptionHint')}
+                </span>
+              </div>
+            </>
           ) : (
             <>
               <div className="flex flex-col gap-1">

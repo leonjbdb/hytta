@@ -127,5 +127,4 @@ export const ROOM_COLOR_PALETTE: readonly RoomColorChoice[] = [
   { name: 'sand', label: 'Sand', value: '#a16207' },
   { name: 'moss', label: 'Moss', value: '#65a30d' },
   { name: 'slate', label: 'Slate', value: '#64748b' },
-  { name: 'midnight', label: 'Midnight', value: '#1e293b' },
 ];

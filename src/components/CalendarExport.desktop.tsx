@@ -58,8 +58,10 @@ export function CalendarExport() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={t('open')}
+        // `title` is both the hover tooltip and the accessible name — adding an
+        // identical `aria-label` would make the title redundant.
         title={t('open')}
+        aria-expanded={open}
         className="flex size-12 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] shadow-lg"
       >
         <Calendar className="size-5" />

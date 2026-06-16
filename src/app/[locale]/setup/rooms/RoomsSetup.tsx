@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RoomIcon } from '@/components/booking/RoomIcon';
+import { PublicPreferences } from '@/components/PublicPreferences';
 import { NewRoomForm, type CreatedRoom } from '../../(authenticated)/admin/RoomForm';
 
 /**
@@ -22,6 +23,7 @@ export function RoomsSetup({ initialHasRooms }: { initialHasRooms: boolean }) {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-10">
+      <PublicPreferences />
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
         <p className="text-sm text-[var(--muted-foreground)]">{t('subtitle')}</p>

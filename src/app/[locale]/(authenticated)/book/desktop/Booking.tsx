@@ -7,13 +7,19 @@ import { toast } from 'sonner';
 import type { DateRange } from 'react-day-picker';
 import { CheckCircle2, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DateRangePicker } from '@/components/booking/DateRangePicker.desktop';
+import { DateRangeFields } from '@/components/booking/DateRangeFields.desktop';
+import { OccupancyCalendar } from '@/components/booking/OccupancyCalendar.desktop';
+import { startOfMonth } from '@/components/booking/OccupancyCalendar.shared';
 import {
   RoomBedPicker,
+  ModeToggle,
+  availableBookingModes,
+  selectionWithMode,
   type PickerBed,
   type PickerRoom,
   type PickerUser,
 } from '@/components/booking/RoomBedPicker.desktop';
+import { collectBookedUserIds } from '@/components/booking/booked-users';
 import { GroupPicker, type GroupOption } from '@/components/booking/GroupPicker';
 import { PendingWarning } from '@/components/booking/PendingWarning';
 import { ReservationSummary } from '@/components/booking/ReservationSummary.desktop';
@@ -48,6 +54,10 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
   const searchParams = useSearchParams();
   const groupParam = searchParams.get('group');
   const { draft, update, clear } = useBookingDraft(currentUserId);
+  // Visible calendar month — owned here so the date inputs (in the header row)
+  // and the calendar (in the body row) stay in sync even though they're now
+  // rendered as separate grid cells.
+  const [month, setMonth] = React.useState<Date>(() => startOfMonth(new Date()));
   const [activeGroupId, setActiveGroupId] = React.useState<string | null>(groupParam);
   // Tracks exactly which picks the currently-selected group injected. Switching
   // or clearing the group subtracts these so manual additions stick around.
@@ -125,6 +135,15 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
   const [isPending, startTransition] = React.useTransition();
   const [success, setSuccess] = React.useState<null | 'PENDING' | 'CONFIRMED'>(null);
   const [managerNames, setManagerNames] = React.useState<string[]>([]);
+
+  // Whole-cottage/pick-areas toggle lives in the page header (so it shares a
+  // height-matched row with the date card) rather than inside the picker.
+  const bookedIds = React.useMemo(() => collectBookedUserIds(availability), [availability]);
+  const availableModes = availableBookingModes(availability);
+  const setMode = (mode: (typeof availableModes)[number]) => {
+    if (mode === draft.selection.mode) return;
+    setSelection(selectionWithMode(draft.selection, mode, { users, bookedIds, currentUserId }));
+  };
 
   const startDate = range?.from ? toISODate(range.from) : undefined;
   const endDate = range?.to ? toISODate(range.to) : undefined;
@@ -260,52 +279,79 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
           {edit ? t('editSubtitle') : t('subtitle')}
         </p>
       </header>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
-          <DateRangePicker value={range} onChange={setRange} rooms={rooms} />
-        </div>
+      {/* Controls row: the start/end date card (left) and the whole-cottage /
+          pick-areas toggle + group picker (right) sit in the same grid row, so
+          the grid's default row stretch gives them the exact same height —
+          no hard-coded values. */}
+      <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
+        {startDate && endDate && (
+          <PendingWarning availability={availability} className="col-span-full" />
+        )}
+        <DateRangeFields value={range} onChange={setRange} onMonthChange={setMonth} />
 
-        <div className="flex flex-col gap-4">
-          {!startDate || !endDate ? (
-            <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)]/40 p-8 text-center text-sm text-[var(--muted-foreground)]">
-              {t('noDates')}
-            </div>
-          ) : (
-            <>
-              <PendingWarning availability={availability} />
-              <GroupPicker
-                groups={groups}
-                value={activeGroupId}
-                onApply={applyGroup}
-                onClear={() => void clearGroup()}
-              />
-              <RoomBedPicker
-                rooms={rooms}
-                beds={beds}
-                users={users}
-                availability={availability}
-                value={draft.selection}
-                onChange={setSelection}
-                currentUserId={currentUserId}
-              />
-            </>
-          )}
-
-          {startDate && endDate && (
-            <ReservationSummary
-              startDate={startDate}
-              endDate={endDate}
-              selection={draft.selection}
-              rooms={rooms}
-              beds={beds}
-              users={users}
-              isPending={isPending}
-              onConfirm={onConfirm}
-              submitLabel={edit ? t('saveChanges') : undefined}
+        {!startDate || !endDate ? (
+          <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)]/40 p-6 text-center text-sm text-[var(--muted-foreground)]">
+            {t('noDates')}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <ModeToggle
+              value={draft.selection.mode}
+              onChange={setMode}
+              modes={availableModes}
+              labels={{
+                FULL_COTTAGE: t('modeWholeCottage'),
+                ROOMS: t('modeRooms'),
+              }}
             />
-          )}
-        </div>
+            <GroupPicker
+              groups={groups}
+              value={activeGroupId}
+              onApply={applyGroup}
+              onClear={() => void clearGroup()}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Body row: the occupancy calendar (left) and the room/bed picker
+          (right), top-aligned at their natural heights. */}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
+        <OccupancyCalendar
+          selection={{ mode: 'range', value: range, onChange: setRange }}
+          rooms={rooms}
+          month={month}
+          onMonthChange={setMonth}
+        />
+        {startDate && endDate && (
+          <RoomBedPicker
+            rooms={rooms}
+            beds={beds}
+            users={users}
+            availability={availability}
+            value={draft.selection}
+            onChange={setSelection}
+            currentUserId={currentUserId}
+            showModeToggle={false}
+          />
+        )}
+      </div>
+
+      {/* Full-width: the confirm summary spans both columns, not just the
+          right one. */}
+      {startDate && endDate && (
+        <ReservationSummary
+          startDate={startDate}
+          endDate={endDate}
+          selection={draft.selection}
+          rooms={rooms}
+          beds={beds}
+          users={users}
+          isPending={isPending}
+          onConfirm={onConfirm}
+          submitLabel={edit ? t('saveChanges') : undefined}
+        />
+      )}
     </div>
   );
 }

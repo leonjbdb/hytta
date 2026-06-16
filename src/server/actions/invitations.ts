@@ -11,7 +11,6 @@ import { rateLimit } from '@/lib/auth/rate-limit';
 import { mailer } from '@/lib/email/service';
 import { requestOrigin } from '@/lib/origin';
 import { cottageNameOrApp } from '@/lib/cottage';
-import { composeName } from '@/lib/name';
 import {
   INVITE_MAX_DURATION_HOURS,
   INVITE_MIN_DURATION_HOURS,
@@ -85,8 +84,6 @@ const CreateInviteSchema = z
 
 const AcceptInviteSchema = z.object({
   token: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/, 'Invalid token shape'),
-  firstName: z.string().trim().min(1).max(80),
-  lastName: z.string().trim().max(80),
   email: z.string().trim().toLowerCase().optional(),
 });
 
@@ -94,8 +91,8 @@ const AcceptInviteSchema = z.object({
  * Mint a new invite for the signed-in user.
  *
  * Two flavours:
- * - Shareable link (`email` omitted): the recipient supplies both name and
- *   email when they accept. `maxUses` is the caller's choice.
+ * - Shareable link (`email` omitted): the recipient supplies the email they
+ *   will use to sign in. `maxUses` is the caller's choice.
  * - Direct email (`email` present): the recipient is pre-bound; we email the
  *   link and force `maxUses = 1` so a forwarded link can't enrol someone else.
  */
@@ -207,7 +204,8 @@ export async function listMyInvites(): Promise<InvitationRow[]> {
  * member must demonstrate control of the address before being signed in.
  *
  * If the invite is email-bound, the address is fixed by the row and the form
- * value is ignored — recipients can only set their display name.
+ * value is ignored. Display name and notification preferences are collected
+ * after the recipient signs in for the first time.
  *
  * Generic error messages throughout to avoid leaking which invites are valid
  * vs. which emails are already taken.
@@ -227,8 +225,6 @@ export async function acceptInvite(formData: FormData): Promise<InviteAcceptResu
 
   const parsed = AcceptInviteSchema.safeParse({
     token: formData.get('token'),
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName') ?? '',
     email: formData.get('email') ?? undefined,
   });
   if (!parsed.success) {
@@ -292,9 +288,6 @@ export async function acceptInvite(formData: FormData): Promise<InviteAcceptResu
   await db.insert(users)
     .values({
       email,
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      name: composeName(parsed.data.firstName, parsed.data.lastName),
       isInvitee: true,
     })
     .run();

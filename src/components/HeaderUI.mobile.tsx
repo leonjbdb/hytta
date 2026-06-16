@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import {
@@ -9,7 +10,6 @@ import {
   ChevronLeft,
   ClipboardList,
   Hammer,
-  LogIn,
   LogOut,
   Mail,
   Menu,
@@ -18,16 +18,12 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { CalendarExportPanel } from './CalendarExport.shared';
 import { LangSwitcher } from './LangSwitcher';
 import { ThemeToggle } from './ThemeToggle';
 
 interface Props {
-  userPresent: boolean;
   userName: string | null;
-  /** Short header label; unused on mobile (the drawer shows the full name). */
-  userShortName?: string | null;
   isAdmin: boolean;
   isManager: boolean;
   isInvitee: boolean;
@@ -45,14 +41,16 @@ type NavEntry =
   | { kind: 'calendar' };
 
 /**
- * Mobile header: compact top bar with brand + manager-pending bell + a
- * hamburger that opens a slide-over drawer. The drawer lists every nav
- * destination and parks the language picker + theme toggle at the bottom so
- * tap targets stay generous and we don't try to cram horizontal icons into
- * a phone's top bar.
+ * Mobile right-side controls: the manager-pending bell + a hamburger that opens
+ * a slide-over drawer. The shared `Header` owns the bar and brand; this fills
+ * the right slot (shown below `md`). Rendered only when a user is present.
+ *
+ * The drawer is portaled to `document.body` rather than rendered in place: the
+ * header uses `backdrop-blur-md` (a backdrop-filter), which per spec creates a
+ * containing block for `position: fixed` descendants — nesting the drawer would
+ * clip it to the 56-px-tall bar instead of the full viewport.
  */
-export function HeaderUI({
-  userPresent,
+export function HeaderMobileControls({
   userName,
   isAdmin,
   isManager,
@@ -61,7 +59,6 @@ export function HeaderUI({
   signOutAction,
 }: Props) {
   const t = useTranslations('Common');
-  const tBrand = useTranslations('Brand');
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -83,96 +80,66 @@ export function HeaderUI({
   //   1. actions on the cottage — book, plus manager/admin tools
   //   2. community — groups + volunteer work
   //   3. account/utility — invite, calendar export, settings
-  const navGroups: NavEntry[][] = [];
-  if (userPresent) {
-    const primary: NavEntry[] = [
-      { kind: 'link', href: '/book', label: t('bookStay'), icon: <CalendarPlus className="size-4" /> },
-    ];
-    if (isManager) {
-      primary.push({
-        kind: 'link',
-        href: '/requests',
-        label: t('requests'),
-        icon: <ClipboardList className="size-4" />,
-        badge: pendingCount,
-      });
-    }
-    if (isAdmin) {
-      primary.push({ kind: 'link', href: '/admin', label: t('admin'), icon: <Shield className="size-4" /> });
-    }
-
-    const community: NavEntry[] = [
-      { kind: 'link', href: '/groups', label: t('groups'), icon: <Users className="size-4" /> },
-      { kind: 'link', href: '/dugnad', label: t('dugnad'), icon: <Hammer className="size-4" /> },
-    ];
-
-    const utility: NavEntry[] = [];
-    if (isInvitee) {
-      utility.push({ kind: 'link', href: '/invite', label: t('invite'), icon: <Mail className="size-4" /> });
-    }
-    utility.push({ kind: 'calendar' });
-    utility.push({ kind: 'link', href: '/settings', label: t('settings'), icon: <Settings className="size-4" /> });
-
-    navGroups.push(primary, community, utility);
+  const primary: NavEntry[] = [
+    { kind: 'link', href: '/book', label: t('bookStay'), icon: <CalendarPlus className="size-4" /> },
+  ];
+  if (isManager) {
+    primary.push({
+      kind: 'link',
+      href: '/requests',
+      label: t('requests'),
+      icon: <ClipboardList className="size-4" />,
+      badge: pendingCount,
+    });
   }
+  if (isAdmin) {
+    primary.push({ kind: 'link', href: '/admin', label: t('admin'), icon: <Shield className="size-4" /> });
+  }
+
+  const community: NavEntry[] = [
+    { kind: 'link', href: '/groups', label: t('groups'), icon: <Users className="size-4" /> },
+    { kind: 'link', href: '/dugnad', label: t('dugnad'), icon: <Hammer className="size-4" /> },
+  ];
+
+  const utility: NavEntry[] = [];
+  if (isInvitee) {
+    utility.push({ kind: 'link', href: '/invite', label: t('invite'), icon: <Mail className="size-4" /> });
+  }
+  utility.push({ kind: 'calendar' });
+  utility.push({ kind: 'link', href: '/settings', label: t('settings'), icon: <Settings className="size-4" /> });
+
+  const navGroups: NavEntry[][] = [primary, community, utility];
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
-        <div className="flex h-14 items-center gap-3 px-4">
-          <Link
-            href={userPresent ? '/dashboard' : '/login'}
-            className="font-semibold tracking-tight"
+      <button
+        type="button"
+        aria-label={t('menu')}
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className="relative inline-flex size-10 items-center justify-center rounded-md hover:bg-[var(--muted)]"
+      >
+        <Menu className="size-5" />
+        {isManager && pendingCount > 0 && (
+          <span
+            aria-label={`${pendingCount}`}
+            className="pointer-events-none absolute right-1 top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-[var(--color-taken)] px-1 text-[10px] font-semibold text-white"
           >
-            {tBrand('name')}
-          </Link>
+            {pendingCount > 99 ? '99+' : pendingCount}
+          </span>
+        )}
+      </button>
 
-          <div className="ml-auto flex items-center gap-2">
-            {userPresent ? (
-              <button
-                type="button"
-                aria-label={t('menu')}
-                aria-expanded={open}
-                onClick={() => setOpen(true)}
-                className="relative inline-flex size-10 items-center justify-center rounded-md hover:bg-[var(--muted)]"
-              >
-                <Menu className="size-5" />
-                {isManager && pendingCount > 0 && (
-                  <span
-                    aria-label={`${pendingCount}`}
-                    className="pointer-events-none absolute right-1 top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-[var(--color-taken)] px-1 text-[10px] font-semibold text-white"
-                  >
-                    {pendingCount > 99 ? '99+' : pendingCount}
-                  </span>
-                )}
-              </button>
-            ) : (
-              <Link href="/login">
-                <Button size="sm">
-                  <LogIn className="size-4" />
-                  {t('signIn')}
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/*
-       * Drawer is rendered as a sibling of <header>, NOT inside it. The
-       * header uses `backdrop-blur-md` (a backdrop-filter), which per CSS
-       * spec creates a containing block for `position: fixed` descendants.
-       * Nesting the drawer inside the header clipped it to the 56-px-tall
-       * top bar instead of the full viewport.
-       */}
-      {open && userPresent && (
-        <Drawer
-          name={userName ?? t('account')}
-          navGroups={navGroups}
-          onClose={() => setOpen(false)}
-          signOutAction={signOutAction}
-        />
-      )}
+      {open &&
+        createPortal(
+          <Drawer
+            name={userName ?? t('account')}
+            navGroups={navGroups}
+            onClose={() => setOpen(false)}
+            signOutAction={signOutAction}
+          />,
+          document.body,
+        )}
     </>
   );
 }

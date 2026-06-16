@@ -51,27 +51,6 @@ export function AcceptInvite({
               });
             }}
           >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="firstName">{t('acceptFirstName')}</Label>
-                <Input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  autoComplete="given-name"
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="lastName">{t('acceptLastName')}</Label>
-                <Input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  autoComplete="family-name"
-                />
-              </div>
-            </div>
             {boundEmail ? (
               <div className="flex flex-col gap-1.5">
                 <Label>{t('acceptEmail')}</Label>

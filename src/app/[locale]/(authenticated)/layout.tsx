@@ -1,5 +1,8 @@
 import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth/config';
+import { db } from '@/db/client';
+import { users } from '@/db/schema';
 import { isCottageConfigured } from '@/lib/cottage';
 import { hasAnyRoom } from '@/lib/rooms';
 import { Header } from '@/components/Header';
@@ -24,6 +27,14 @@ export default async function AuthenticatedLayout({
   if (!session?.user?.id) redirect('/login');
   // No signed-in surface until the cottage has been named on first run.
   if (!(await isCottageConfigured())) redirect('/setup');
+  const me = (await db
+    .select({ firstLoginCompletedAt: users.firstLoginCompletedAt })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .all())[0];
+  if (!me) redirect('/login');
+  // First-login setup must happen before the admin is sent to create rooms.
+  if (me.firstLoginCompletedAt == null) redirect('/first-login');
   // ...and not until at least one room exists. `/setup/rooms` lives outside this
   // layout, so the redirect can't loop.
   if (!(await hasAnyRoom())) redirect('/setup/rooms');

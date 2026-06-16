@@ -4,7 +4,8 @@ import * as React from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { roomLabel } from '@/lib/booking/room-label';
-import { Loader2, Pencil, Search, Trash2, UserX, X } from 'lucide-react';
+import { Loader2, Mail, Pencil, Search, Trash2, UserX, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,7 @@ import { useConfirm } from '@/components/ConfirmDialog';
 import { CollapsibleSection } from '@/components/CollapsibleSection';
 import { PersonBadge } from '@/components/PersonBadge';
 import { RoomIcon } from '@/components/booking/RoomIcon';
-import { CottageNameForm } from '../CottageNameForm';
+import { CottageSettingsForm } from '../CottageSettingsForm';
 import {
   deleteRoom,
   deleteUser,
@@ -33,7 +34,15 @@ type UserRole = 'admin' | 'manager' | 'inviter';
 
 export type { AdminBed, AdminRoom, AdminUser };
 
-export function Admin({ cottageName, rooms, beds, users, adminCount, viewerId }: AdminProps) {
+export function Admin({
+  cottageName,
+  cottageDescription,
+  rooms,
+  beds,
+  users,
+  adminCount,
+  viewerId,
+}: AdminProps) {
   const t = useTranslations('Admin');
   return (
     <div className="flex flex-col gap-10">
@@ -42,7 +51,10 @@ export function Admin({ cottageName, rooms, beds, users, adminCount, viewerId }:
         <p className="text-sm text-[var(--muted-foreground)]">{t('subtitle')}</p>
       </header>
 
-      <CottageNameForm initialName={cottageName} />
+      <CottageSettingsForm
+        initialName={cottageName}
+        initialDescription={cottageDescription}
+      />
       <RoomsSection rooms={rooms} beds={beds} />
       <UsersSection users={users} adminCount={adminCount} viewerId={viewerId} />
     </div>
@@ -249,6 +261,7 @@ function UsersSection({
   const [pending, setPending] = React.useState<{ id: string; role: UserRole } | null>(null);
   const [kicking, setKicking] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
+  const searchId = React.useId();
 
   const q = query.trim().toLowerCase();
   const matched = q
@@ -295,8 +308,12 @@ function UsersSection({
   return (
     <CollapsibleSection title={t('usersHeading')} right={users.length}>
       <div className="relative">
+        <label htmlFor={searchId} className="sr-only">
+          {t('searchUsers')}
+        </label>
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
         <Input
+          id={searchId}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -321,13 +338,24 @@ function UsersSection({
                 className="flex flex-col gap-3 rounded-md bg-[var(--muted)]/30 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <PersonBadge
-                    name={u.name ?? u.email}
-                    isGuest={false}
-                    highlight={u.id === viewerId}
-                    isAdmin={u.isAdmin}
-                    isManager={u.isManager}
-                  />
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <PersonBadge
+                      size="lg"
+                      name={u.name ?? u.email}
+                      isGuest={false}
+                      highlight={u.id === viewerId}
+                      isAdmin={u.isAdmin}
+                      isManager={u.isManager}
+                    />
+                    {u.name && (
+                      <a href={`mailto:${u.email}`} className="inline-flex min-w-0 max-w-full">
+                        <Badge className="min-w-0 gap-1.5 bg-[var(--muted)] text-sm font-normal text-[var(--muted-foreground)] transition-colors hover:bg-[color-mix(in_oklch,var(--muted),var(--foreground)_10%)] hover:text-[var(--foreground)]">
+                          <Mail className="size-4 shrink-0" />
+                          <span className="min-w-0 truncate">{u.email}</span>
+                        </Badge>
+                      </a>
+                    )}
+                  </div>
                   {u.id !== viewerId && (
                     <button
                       type="button"
@@ -335,7 +363,7 @@ function UsersSection({
                       title={t('kickUser')}
                       disabled={kicking === u.id}
                       onClick={() => kick(u)}
-                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-[var(--destructive)] transition-colors active:bg-[color-mix(in_oklch,var(--destructive),transparent_85%)] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--destructive)] transition-colors active:bg-[color-mix(in_oklch,var(--destructive),transparent_85%)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {kicking === u.id ? (
                         <Loader2 className="size-4 animate-spin" />

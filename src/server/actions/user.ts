@@ -29,6 +29,20 @@ const NotifySchema = z.object({
   requests: z.boolean(),
 });
 
+const FirstLoginSchema = NameSchema.extend({
+  notifyEnabled: z.boolean(),
+  notifyBooking: z.boolean(),
+  notifyRequests: z.boolean(),
+});
+
+export interface FirstLoginInput {
+  firstName: string;
+  lastName: string;
+  notifyEnabled: boolean;
+  notifyBooking: boolean;
+  notifyRequests: boolean;
+}
+
 /**
  * Save the signed-in user's email-notification preferences. The sub-flags are
  * always stored (even while the master switch is off) so toggling it back on
@@ -74,6 +88,38 @@ export async function updateName(formData: FormData): Promise<UserActionResult> 
     .set({ firstName, lastName, name: composeName(firstName, lastName) })
     .where(eq(users.id, session.user.id))
     .run();
+  revalidatePath('/settings');
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+export async function completeFirstLogin(input: FirstLoginInput): Promise<UserActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, code: 'AUTH', message: 'Sign in required' };
+
+  const parsed = FirstLoginSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      code: 'VALIDATION',
+      message: parsed.error.issues[0]?.message ?? 'Invalid first-login setup',
+    };
+  }
+
+  const { firstName, lastName, notifyEnabled, notifyBooking, notifyRequests } = parsed.data;
+  await db.update(users)
+    .set({
+      firstName,
+      lastName,
+      name: composeName(firstName, lastName),
+      notifyEnabled,
+      notifyBooking,
+      notifyRequests,
+      firstLoginCompletedAt: Math.floor(Date.now() / 1000),
+    })
+    .where(eq(users.id, session.user.id))
+    .run();
+
   revalidatePath('/settings');
   revalidatePath('/dashboard');
   return { ok: true };

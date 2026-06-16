@@ -9,10 +9,10 @@ import { cottageNameOrApp } from '@/lib/cottage';
  * query parameter so calendar apps (Google Calendar, Apple Calendar, etc.)
  * can subscribe without going through the interactive login flow.
  *
- *   GET /api/calendar?token=<calendar_token>&scope=me|all[&download=1][&locale=nb-NO|en-GB]
+ *   GET /api/calendar?token=<calendar_token>&scope=<scope>[&download=1][&locale=nb-NO|en-GB]
  *
- * `scope=me`  → bookings the user is a participant or booker of.
- * `scope=all` → every confirmed booking on the cottage.
+ * `scope` is one of `my-stays`, `my-bookings`, `others-bookings`, `everyone`
+ * (see `FeedScope`). All but `everyone` are relative to the token's owner.
  *
  * `download=1` returns the same body with `Content-Disposition: attachment`
  * so the browser saves it as a file. Without it, the body is served inline
@@ -33,7 +33,13 @@ export async function GET(req: Request): Promise<Response> {
   const localeRaw = url.searchParams.get('locale');
 
   if (!token) return badRequest('Missing token');
-  if (scopeRaw !== 'me' && scopeRaw !== 'all') return badRequest('Invalid scope');
+  const validScopes: readonly FeedScope[] = [
+    'my-stays',
+    'my-bookings',
+    'others-bookings',
+    'everyone',
+  ];
+  if (!validScopes.includes(scopeRaw as FeedScope)) return badRequest('Invalid scope');
   const scope = scopeRaw as FeedScope;
   const locale: 'nb-NO' | 'en-GB' = localeRaw === 'en-GB' ? 'en-GB' : 'nb-NO';
 
@@ -53,7 +59,7 @@ export async function GET(req: Request): Promise<Response> {
     cottageName: await cottageNameOrApp(),
   });
 
-  const filename = scope === 'me' ? 'hytta-mine.ics' : 'hytta-alle.ics';
+  const filename = `hytta-${scope}.ics`;
   const headers: Record<string, string> = {
     'Content-Type': 'text/calendar; charset=utf-8',
     'Cache-Control': 'private, no-store',

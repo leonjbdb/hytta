@@ -28,6 +28,11 @@ export function UserMenu({ name, fullName, isInvitee, signOutAction }: Props) {
     setLocale(next);
   };
 
+  // Reveal the full name on hover only when it differs from the (possibly
+  // shortened) label we show — a title identical to the visible text is
+  // redundant and flagged by accessibility checkers.
+  const fullNameTitle = fullName && fullName !== name ? fullName : undefined;
+
   React.useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -54,7 +59,7 @@ export function UserMenu({ name, fullName, isInvitee, signOutAction }: Props) {
         className="inline-flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--card)] px-2 text-sm hover:bg-[var(--muted)]"
       >
         <User className="size-4" />
-        <span title={fullName ?? name} className="max-w-[10rem] truncate">
+        <span title={fullNameTitle} className="max-w-[10rem] truncate">
           {name}
         </span>
       </button>
@@ -68,9 +73,9 @@ export function UserMenu({ name, fullName, isInvitee, signOutAction }: Props) {
         >
           <div
             role="presentation"
-            className="flex items-center gap-2 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]"
+            className="flex items-center gap-2 px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-widest text-[var(--muted-foreground)]"
           >
-            <Globe className="size-3" />
+            <Globe className="size-3.5" />
             {t('language')}
           </div>
           {LOCALES.map((l) => (

@@ -1,10 +1,14 @@
 import { eq, sql } from 'drizzle-orm';
+import { getTranslations } from 'next-intl/server';
+import Link from 'next/link';
+import { LogIn } from 'lucide-react';
 import { auth, signOut } from '@/lib/auth/config';
 import { db } from '@/db/client';
 import { reservations, users } from '@/db/schema';
 import { shortDisplayName } from '@/lib/name';
-import { HeaderUI as HeaderUIDesktop } from './HeaderUI.desktop';
-import { HeaderUI as HeaderUIMobile } from './HeaderUI.mobile';
+import { Button } from '@/components/ui/button';
+import { HeaderDesktopControls } from './HeaderUI.desktop';
+import { HeaderMobileControls } from './HeaderUI.mobile';
 
 export async function Header() {
   const session = await auth();
@@ -54,32 +58,71 @@ export async function Header() {
     await signOut({ redirectTo: '/login' });
   }
 
-  // Chrome picks its variant on the CLIENT via CSS breakpoints, not server-side
-  // UA detection. Page bodies use `pickVariant` (server UA) so the heavy variant
-  // ships once, but the header lives in the shared `(authenticated)` layout — a
-  // segment the client Router Cache can reuse across navigations. A server UA
-  // decision baked into that cached layout would stick (e.g. a desktop header
-  // left atop a mobile page). Rendering both and toggling with `md:` is immune
-  // to that and always matches the real viewport. Both are light client trees.
-  const ui = {
-    userPresent: Boolean(session?.user),
-    userName,
-    userShortName,
-    isAdmin: Boolean(session?.user?.isAdmin),
-    isManager: Boolean(session?.user?.isManager),
-    isInvitee: Boolean(session?.user?.isInvitee),
-    pendingCount,
-    signOutAction,
-  };
+  const userPresent = Boolean(session?.user);
+  const isAdmin = Boolean(session?.user?.isAdmin);
+  const isManager = Boolean(session?.user?.isManager);
+  const isInvitee = Boolean(session?.user?.isInvitee);
 
+  const tCommon = await getTranslations('Common');
+  const tBrand = await getTranslations('Brand');
+
+  // One header shell, one brand link. The right-side controls differ by
+  // viewport but are only *content* of this single banner — the shell and
+  // brand are rendered once so we don't emit two `<header>` landmarks or a
+  // duplicate brand link.
+  //
+  // Chrome picks the control variant on the CLIENT via CSS breakpoints, not
+  // server-side UA detection. Page bodies use `pickVariant` (server UA) so the
+  // heavy variant ships once, but the header lives in the shared
+  // `(authenticated)` layout — a segment the client Router Cache reuses across
+  // navigations. A server-UA decision baked into that cached layout would stick
+  // (e.g. desktop controls atop a mobile page). Rendering both control clusters
+  // and toggling with `md:` is immune to that and always matches the viewport.
   return (
-    <>
-      <div className="md:hidden">
-        <HeaderUIMobile {...ui} />
+    <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
+      {/* A touch wider than the page content (max-w-5xl) so the header sits
+          with slightly less margin on the left and right on desktop. */}
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
+        <Link
+          href={userPresent ? '/dashboard' : '/login'}
+          className="font-semibold tracking-tight"
+        >
+          {tBrand('name')}
+        </Link>
+
+        {userPresent ? (
+          <>
+            <div className="ml-auto flex items-center gap-2 md:hidden">
+              <HeaderMobileControls
+                userName={userName}
+                isAdmin={isAdmin}
+                isManager={isManager}
+                isInvitee={isInvitee}
+                pendingCount={pendingCount}
+                signOutAction={signOutAction}
+              />
+            </div>
+            <div className="ml-auto hidden items-center gap-2 md:flex">
+              <HeaderDesktopControls
+                userName={userName}
+                userShortName={userShortName}
+                isAdmin={isAdmin}
+                isManager={isManager}
+                isInvitee={isInvitee}
+                pendingCount={pendingCount}
+                signOutAction={signOutAction}
+              />
+            </div>
+          </>
+        ) : (
+          <Link href="/login" className="ml-auto">
+            <Button size="sm">
+              <LogIn className="size-4" />
+              {tCommon('signIn')}
+            </Button>
+          </Link>
+        )}
       </div>
-      <div className="hidden md:block">
-        <HeaderUIDesktop {...ui} />
-      </div>
-    </>
+    </header>
   );
 }

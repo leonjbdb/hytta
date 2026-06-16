@@ -26,6 +26,8 @@ export interface AdminUser {
 
 export interface AdminProps {
   cottageName: string;
+  /** Link-preview description; empty string when the operator hasn't set one. */
+  cottageDescription: string;
   rooms: AdminRoom[];
   beds: AdminBed[];
   users: AdminUser[];

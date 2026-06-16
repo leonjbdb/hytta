@@ -38,9 +38,9 @@ export const users = sqliteTable('user', {
   id: text('id').primaryKey().$defaultFn(cuid),
   /**
    * Display name. Nullable at the SQLite layer because Auth.js's drizzle
-   * adapter occasionally inserts rows before the user picks one (legacy
-   * shape). Application code (signup, settings, invite-accept) enforces
-   * `min(1)` at the zod boundary so live accounts always have one.
+   * adapter occasionally inserts rows before the user picks one, and invite
+   * acceptance creates the account before first-login onboarding collects a
+   * profile name.
    */
   name: text('name'),
   /**
@@ -84,6 +84,12 @@ export const users = sqliteTable('user', {
   notifyEnabled: integer('notify_enabled', { mode: 'boolean' }).notNull().default(false),
   notifyBooking: integer('notify_booking', { mode: 'boolean' }).notNull().default(true),
   notifyRequests: integer('notify_requests', { mode: 'boolean' }).notNull().default(true),
+  /**
+   * Set after the first signed-in onboarding screen has collected the user's
+   * display name and notification preferences. Nullable so existing and newly
+   * invited accounts are gated until they explicitly complete it.
+   */
+  firstLoginCompletedAt: integer('first_login_completed_at'),
   /**
    * Opaque token embedded in personal iCal feed URLs so calendar apps can
    * subscribe without an interactive sign-in. Generated lazily; rotating it
@@ -191,9 +197,10 @@ export const passwordResetTokens = sqliteTable(
 
 /* ----------------------------------------------------------------------- *
  * Instance settings — a single row holding cottage-wide configuration the
- * operator sets on first run. Currently just the cottage's display name
- * (the app itself is "Hytta"; each deployment names its own cottage, e.g.
- * "Granli"). Enforced as a singleton via a fixed primary key.
+ * operator sets on first run and tunes from the admin page: the cottage's
+ * display name (the app itself is "Hytta"; each deployment names its own
+ * cottage, e.g. "Granli") and the link-preview description. Enforced as a
+ * singleton via a fixed primary key.
  * ----------------------------------------------------------------------- */
 export const cottageSettings = sqliteTable(
   'cottage_settings',
@@ -202,6 +209,10 @@ export const cottageSettings = sqliteTable(
     id: text('id').primaryKey().default('singleton'),
     /** Operator-chosen cottage display name (e.g. "Granli"). */
     name: text('name').notNull(),
+    /** Operator-chosen tagline shown as the meta/OG description in link
+     *  previews. Null until set; the app falls back to a default built from
+     *  the cottage name. */
+    description: text('description'),
     createdAt: integer('created_at').notNull().$defaultFn(now),
     updatedAt: integer('updated_at').notNull().$defaultFn(now),
   },

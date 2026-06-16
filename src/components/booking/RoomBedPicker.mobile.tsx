@@ -70,6 +70,9 @@ interface Props {
   value: Selection;
   onChange: (next: Selection) => void;
   currentUserId: string;
+  /** Rendered directly below the whole-cottage/pick-areas toggle — used by the
+   *  booking flow to place the group picker there. */
+  belowModeToggle?: React.ReactNode;
 }
 
 /* ---------------- helpers ---------------- */
@@ -257,6 +260,7 @@ export function RoomBedPicker({
   value,
   onChange,
   currentUserId,
+  belowModeToggle,
 }: Props) {
   const t = useTranslations('Book');
   const locale = useLocale();
@@ -449,6 +453,8 @@ export function RoomBedPicker({
         }}
       />
 
+      {belowModeToggle}
+
       {value.mode === 'FULL_COTTAGE' && (
         <div
           className={cn(
@@ -464,7 +470,7 @@ export function RoomBedPicker({
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold">{t('fullCottage')}</h3>
+                <h2 className="text-base font-semibold">{t('fullCottage')}</h2>
                 <PendingDot names={fullPendingNames} />
               </div>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">

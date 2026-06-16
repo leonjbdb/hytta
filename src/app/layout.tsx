@@ -5,7 +5,7 @@ import { JetBrains_Mono } from 'next/font/google';
 import { themeBootstrapScript } from '@/components/theme-provider';
 import { stripExtensionAttrsScript } from '@/lib/strip-extension-attrs';
 import { routing } from '@/i18n/routing';
-import { cottageNameOrApp } from '@/lib/cottage';
+import { cottageDescriptionOrDefault, cottageNameOrApp } from '@/lib/cottage';
 import { requestOrigin } from '@/lib/origin';
 import './globals.css';
 
@@ -17,9 +17,15 @@ const jetbrainsMono = JetBrains_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
   const cottageName = await cottageNameOrApp();
+  const title = `${cottageName} — Cottage booking`;
+  // Operator-configurable, set from the admin page. Falls back to a default
+  // built from the cottage name until the operator writes their own.
+  const description = await cottageDescriptionOrDefault();
   return {
-    title: `${cottageName} — Cottage booking`,
-    description: 'A quiet cottage retreat. Reserve your stay.',
+    title,
+    description,
+    // Mirror onto Open Graph so link unfurlers (Slack, iMessage, etc.) show it.
+    openGraph: { title, description },
     // Resolve OG/canonical URLs against the actual request host, not a fixed URL.
     metadataBase: new URL(await requestOrigin()),
   };
@@ -41,14 +47,29 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang={lang} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: stripExtensionAttrsScript }} />
-        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
-      </head>
       <body
         className={`${jetbrainsMono.variable} min-h-dvh antialiased`}
         suppressHydrationWarning
       >
+        {/*
+         * Pre-hydration bootstrap, injected as raw HTML rather than JSX
+         * <script> elements — React 19 warns about any rendered <script> child
+         * (it won't run on client renders), but inline scripts in the initial
+         * server HTML execute during parse, before hydration, which is exactly
+         * what these need. The theme script avoids a flash of the wrong colour
+         * scheme; the strip-extension script removes attributes injected by
+         * browser extensions before React hydrates, avoiding a mismatch.
+         * Wrapping them in a div means React only ever sees the div, not a
+         * <script> element, so the warning never fires.
+         */}
+        <div
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html:
+              `<script>${stripExtensionAttrsScript}</script>` +
+              `<script>${themeBootstrapScript}</script>`,
+          }}
+        />
         {children}
       </body>
     </html>

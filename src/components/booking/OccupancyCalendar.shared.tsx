@@ -139,6 +139,60 @@ function sameISODay(a: Date | undefined, b: Date): boolean {
   return toISODate(a) === toISODate(b);
 }
 
+function addDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
+const WEEK_START_DAY = 1; // Monday, matching DayPicker weekStartsOn={1}.
+const WEEK_END_DAY = 0; // Sunday.
+
+export const RANGE_CONTINUATION_CLASSNAMES = {
+  rangeContinuesAfterWeek: 'hytta-range-continues-after-week',
+  rangeContinuesBeforeWeek: 'hytta-range-continues-before-week',
+  rangeStartContinuesBelow: '[&_button]:!rounded-bl-none',
+  rangeEndContinuesAbove: '[&_button]:!rounded-tr-none',
+  rangeConcaveBeforeStart: 'hytta-range-concave-before-start',
+  rangeConcaveAfterEnd: 'hytta-range-concave-after-end',
+};
+
+export function getRangeContinuationModifiers(range: DateRange | undefined) {
+  const fromDate = range?.from;
+  const toDate = range?.to;
+  const from = fromDate ? toISODate(fromDate) : null;
+  const to = toDate ? toISODate(toDate) : null;
+
+  return {
+    rangeContinuesAfterWeek: (date: Date) => {
+      if (!from || !to) return false;
+      const iso = toISODate(date);
+      return date.getDay() === WEEK_END_DAY && iso >= from && iso < to;
+    },
+    rangeContinuesBeforeWeek: (date: Date) => {
+      if (!from || !to) return false;
+      const iso = toISODate(date);
+      return date.getDay() === WEEK_START_DAY && iso > from && iso <= to;
+    },
+    rangeStartContinuesBelow: (date: Date) => {
+      if (!from || !to || !sameISODay(range?.from, date)) return false;
+      return toISODate(addDays(date, 7)) <= to;
+    },
+    rangeEndContinuesAbove: (date: Date) => {
+      if (!from || !to || !sameISODay(range?.to, date)) return false;
+      return toISODate(addDays(date, -7)) >= from;
+    },
+    rangeConcaveBeforeStart: (date: Date) => {
+      if (!fromDate || !to || fromDate.getDay() === WEEK_START_DAY) return false;
+      if (toISODate(date) !== toISODate(addDays(fromDate, -1))) return false;
+      return toISODate(addDays(date, 7)) <= to;
+    },
+    rangeConcaveAfterEnd: (date: Date) => {
+      if (!toDate || !from || toDate.getDay() === WEEK_END_DAY) return false;
+      if (toISODate(date) !== toISODate(addDays(toDate, 1))) return false;
+      return toISODate(addDays(date, -7)) >= from;
+    },
+  };
+}
+
 /**
  * Count days in the inclusive range [from, to] that are fully booked (whole
  * cottage taken, or every slot filled). A stay occupies every day in the
@@ -363,7 +417,7 @@ function buildDayTooltipGroups(
 }
 
 export function CustomDayButton(props: DayButtonProps) {
-  const { day, modifiers, children, className, ...buttonProps } = props;
+  const { day, modifiers, className, ...buttonProps } = props;
   const { byDay, rooms, fullyBooked, cellWidth } = React.useContext(OccupancyContext);
   const t = useTranslations('Book');
   const locale = useLocale();
@@ -414,9 +468,13 @@ export function CustomDayButton(props: DayButtonProps) {
       {/* Dim only the date + marks for fully-booked days — NOT the button, or
           the absolutely-positioned tooltip below would inherit the opacity. */}
       <span
-        className={cn('leading-none', isToday && 'font-semibold', isFullyBooked && 'opacity-60')}
+        className={cn(
+          'relative z-10 leading-none',
+          isToday && 'font-semibold',
+          isFullyBooked && 'opacity-60',
+        )}
       >
-        {children}
+        {day.date.getDate()}
       </span>
       {/* Custom hover tooltip — styled like the booking summary card — listing
           every room booked that day and who is staying in each. */}

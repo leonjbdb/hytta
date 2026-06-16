@@ -44,10 +44,18 @@ export async function reconcileTestUser(): Promise<void> {
           isManager,
           isInvitee: true,
           emailVerified: new Date(),
+          firstLoginCompletedAt: Math.floor(Date.now() / 1000),
         })
         .onConflictDoUpdate({
           target: users.id,
-          set: { email, passwordHash, isAdmin, isManager },
+          set: {
+            email,
+            name: 'Test User',
+            passwordHash,
+            isAdmin,
+            isManager,
+            firstLoginCompletedAt: Math.floor(Date.now() / 1000),
+          },
         })
         .run();
     } else {

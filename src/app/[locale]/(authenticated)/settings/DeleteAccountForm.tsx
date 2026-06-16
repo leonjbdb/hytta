@@ -23,7 +23,7 @@ export function DeleteAccountForm() {
   return (
     <Card className="border-[var(--destructive)]/40">
       <CardHeader>
-        <CardTitle className="text-base text-[var(--destructive)]">
+        <CardTitle as="h2" className="text-base text-[var(--destructive)]">
           {t('deleteAccountHeading')}
         </CardTitle>
       </CardHeader>

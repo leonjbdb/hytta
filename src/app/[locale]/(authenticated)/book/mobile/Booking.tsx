@@ -252,8 +252,9 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
 
   return (
     /*
-     * Mobile booking flow: linear single-column. Calendar first, then group
-     * picker, then room/bed picker. The ReservationSummary at the end is
+     * Mobile booking flow: linear single-column. Calendar first, then the
+     * room/bed picker (whose mode toggle is followed by the group picker). The
+     * ReservationSummary at the end is
      * `createPortal`-ed into the layout's `#hytta-bottom-slot`, so it
      * sits *outside* the scroll container — the scrollbar stops at its
      * top edge and content can't scroll behind it.
@@ -278,12 +279,6 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
           ) : (
             <>
               <PendingWarning availability={availability} />
-              <GroupPicker
-                groups={groups}
-                value={activeGroupId}
-                onApply={applyGroup}
-                onClear={() => void clearGroup()}
-              />
               <RoomBedPicker
                 rooms={rooms}
                 beds={beds}
@@ -292,6 +287,14 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
                 value={draft.selection}
                 onChange={setSelection}
                 currentUserId={currentUserId}
+                belowModeToggle={
+                  <GroupPicker
+                    groups={groups}
+                    value={activeGroupId}
+                    onApply={applyGroup}
+                    onClear={() => void clearGroup()}
+                  />
+                }
               />
             </>
           )}

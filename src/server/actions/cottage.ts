@@ -5,29 +5,36 @@ import { z } from 'zod';
 import { auth, signIn } from '@/lib/auth/config';
 import { getDb } from '@/db/client';
 import { users } from '@/db/schema';
-import { COTTAGE_NAME_MAX, isCottageConfigured, setCottageName } from '@/lib/cottage';
+import {
+  COTTAGE_DESCRIPTION_MAX,
+  COTTAGE_NAME_MAX,
+  isCottageConfigured,
+  setCottageSettings,
+} from '@/lib/cottage';
 import { composeName } from '@/lib/name';
 
 export type SetupResult =
   | { ok: true; emailed?: boolean }
   | { ok: false; message: string };
 
-const NameSchema = z.object({
+const SettingsSchema = z.object({
   name: z.string().trim().min(1).max(COTTAGE_NAME_MAX),
+  // Optional: a blank value clears the description back to the default.
+  description: z.string().trim().max(COTTAGE_DESCRIPTION_MAX),
 });
 
 const SetupSchema = z.object({
   name: z.string().trim().min(1).max(COTTAGE_NAME_MAX),
+  description: z.string().trim().max(COTTAGE_DESCRIPTION_MAX),
   adminEmail: z.string().trim().toLowerCase().email(),
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().max(80),
 });
 
 /**
- * First-run setup: name the cottage. Deliberately a one-shot — once a name
- * exists this refuses to overwrite it, so the public `/setup` route can't be
- * used to rename the cottage after the operator has configured it. (Renaming
- * later would be a separate, admin-gated action.)
+ * First-run setup: configure the cottage and create the initial admin. It is
+ * deliberately a one-shot — once a name exists this refuses to overwrite it, so
+ * the public `/setup` route can't be used after the operator has configured it.
  */
 export async function completeCottageSetup(formData: FormData): Promise<SetupResult> {
   if (await isCottageConfigured()) {
@@ -36,6 +43,7 @@ export async function completeCottageSetup(formData: FormData): Promise<SetupRes
 
   const parsed = SetupSchema.safeParse({
     name: formData.get('name'),
+    description: formData.get('description') ?? '',
     adminEmail: formData.get('adminEmail'),
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName') ?? '',
@@ -43,7 +51,7 @@ export async function completeCottageSetup(formData: FormData): Promise<SetupRes
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid input' };
   }
-  const { name, adminEmail, firstName, lastName } = parsed.data;
+  const { name, description, adminEmail, firstName, lastName } = parsed.data;
   const displayName = composeName(firstName, lastName);
 
   // Create (or promote) the named admin first. Done before naming the cottage
@@ -59,14 +67,22 @@ export async function completeCottageSetup(formData: FormData): Promise<SetupRes
       emailVerified: new Date(),
       isAdmin: true,
       isInvitee: true,
+      firstLoginCompletedAt: null,
     })
     .onConflictDoUpdate({
       target: users.email,
-      set: { firstName, lastName, name: displayName, isAdmin: true, isInvitee: true },
+      set: {
+        firstName,
+        lastName,
+        name: displayName,
+        isAdmin: true,
+        isInvitee: true,
+        firstLoginCompletedAt: null,
+      },
     })
     .run();
 
-  await setCottageName(name);
+  await setCottageSettings({ name, description });
   // The name flows into the brand, title, emails and feeds — bust the whole tree.
   revalidatePath('/', 'layout');
 
@@ -87,22 +103,26 @@ export async function completeCottageSetup(formData: FormData): Promise<SetupRes
 }
 
 /**
- * Rename the cottage after setup. Admin-gated (unlike `/setup`, which is a
- * public one-shot) so the operator can fix or change the name from the admin
- * page. Overwrites the existing name.
+ * Update cottage settings (name + link-preview description) after setup.
+ * Admin-gated (unlike `/setup`, which is a public one-shot) so the operator can
+ * fix or change these from the admin page. Overwrites the existing values; a
+ * blank description resets it to the default.
  */
-export async function renameCottage(formData: FormData): Promise<SetupResult> {
+export async function updateCottage(formData: FormData): Promise<SetupResult> {
   const session = await auth();
   if (!session?.user?.isAdmin) {
     return { ok: false, message: 'Admins only.' };
   }
 
-  const parsed = NameSchema.safeParse({ name: formData.get('name') });
+  const parsed = SettingsSchema.safeParse({
+    name: formData.get('name'),
+    description: formData.get('description') ?? '',
+  });
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid name' };
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid input' };
   }
 
-  await setCottageName(parsed.data.name);
+  await setCottageSettings(parsed.data);
   revalidatePath('/', 'layout');
   return { ok: true };
 }

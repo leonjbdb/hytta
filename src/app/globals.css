@@ -135,8 +135,67 @@
     --rdp-accent-background-color: color-mix(in oklch, var(--primary), transparent 85%);
     --rdp-day_button-border-radius: 0.5rem;
     --rdp-selected-border: 2px solid var(--primary);
+    --hytta-calendar-bg: color-mix(in oklch, var(--card), var(--color-moss-100) 8%);
+    --hytta-range-edge-fade: 1.25rem;
+    --hytta-range-concave-corner-size: var(--rdp-day_button-border-radius);
   }
 
+}
+
+.hytta-range-continues-after-week button,
+.hytta-range-continues-before-week button {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.hytta-range-continues-after-week button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.hytta-range-continues-before-week button {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.hytta-range-concave-before-start,
+.rdp-root [role="gridcell"]:has(+ .hytta-range-start-continues-below) {
+  background: linear-gradient(var(--primary), var(--primary)) bottom right /
+    var(--hytta-range-concave-corner-size) var(--hytta-range-concave-corner-size) no-repeat;
+}
+
+.hytta-range-concave-after-end,
+.rdp-root .hytta-range-end-continues-above + [role="gridcell"] {
+  background: linear-gradient(var(--primary), var(--primary)) top left /
+    var(--hytta-range-concave-corner-size) var(--hytta-range-concave-corner-size) no-repeat;
+}
+
+.hytta-range-concave-before-start button,
+.hytta-range-concave-after-end button,
+.rdp-root [role="gridcell"]:has(+ .hytta-range-start-continues-below) > button,
+.rdp-root .hytta-range-end-continues-above + [role="gridcell"] > button {
+  background: var(--hytta-calendar-bg);
+}
+
+.hytta-range-continues-after-week button::after,
+.hytta-range-continues-before-week button::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: var(--hytta-range-edge-fade);
+}
+
+.hytta-range-continues-after-week button::after {
+  right: 0;
+  background: linear-gradient(to right, transparent, var(--hytta-calendar-bg));
+}
+
+.hytta-range-continues-before-week button::before {
+  left: 0;
+  background: linear-gradient(to right, var(--hytta-calendar-bg), transparent);
 }
 
 /* Sonner warning toasts — a clean, standard amber. The toaster is pinned to

@@ -81,6 +81,14 @@ interface Props {
   value: Selection;
   onChange: (next: Selection) => void;
   currentUserId: string;
+  /** Rendered directly below the whole-cottage/pick-areas toggle — used by the
+   *  booking flow to place the group picker there. */
+  belowModeToggle?: React.ReactNode;
+  /** Whether to render the whole-cottage/pick-areas toggle inside the picker.
+   *  The desktop booking flow renders it in the page header instead (so it can
+   *  share a height-matched grid row with the date card), and sets this false.
+   *  Defaults to true. */
+  showModeToggle?: boolean;
 }
 
 /* ---------------- helpers ---------------- */
@@ -258,6 +266,37 @@ function decodePick(value: string): ParticipantPick | null {
   return { kind: 'user', userId: value };
 }
 
+/** Booking modes offered for the current availability — whole-cottage is only
+ *  available when the entire cottage is free over the range. Exported so the
+ *  booking page can render the mode toggle outside the picker. */
+export function availableBookingModes(availability: AvailabilityTarget[]): BookingMode[] {
+  const fullAvailable = availability.length === 0 || isFullAvailable(availability);
+  return fullAvailable ? ['FULL_COTTAGE', 'ROOMS'] : ['ROOMS'];
+}
+
+/** Pure mode switch — the next selection when flipping the whole-cottage /
+ *  pick-areas toggle. Switching to FULL_COTTAGE promotes the room participants
+ *  into the cottage list (deduped) while keeping the room map intact so flipping
+ *  back restores the ROOMS view. Exported so the toggle can live in the page. */
+export function selectionWithMode(
+  value: Selection,
+  mode: BookingMode,
+  ctx: { users: PickerUser[]; bookedIds: Set<string>; currentUserId: string },
+): Selection {
+  if (mode === value.mode) return value;
+  if (mode === 'FULL_COTTAGE') {
+    const fromRooms = flattenRoomParticipants(value.rooms);
+    const next = mergeParticipants(value.fullCottageParticipants, fromRooms);
+    return {
+      ...value,
+      mode: 'FULL_COTTAGE',
+      fullCottageParticipants:
+        next.length > 0 ? next : [defaultPickFor(ctx.users, ctx.bookedIds, ctx.currentUserId)],
+    };
+  }
+  return { ...value, mode: 'ROOMS' };
+}
+
 /* ---------------- main component ---------------- */
 
 export function RoomBedPicker({
@@ -268,6 +307,8 @@ export function RoomBedPicker({
   value,
   onChange,
   currentUserId,
+  belowModeToggle,
+  showModeToggle = true,
 }: Props) {
   const t = useTranslations('Book');
   const locale = useLocale();
@@ -281,9 +322,7 @@ export function RoomBedPicker({
   const fullAvailable = availability.length === 0 || isFullAvailable(availability);
   const fullPending = fullCottagePending(availability);
   const fullPendingNames = fullCottagePendingNames(availability);
-  const availableModes: BookingMode[] = fullAvailable
-    ? ['FULL_COTTAGE', 'ROOMS']
-    : ['ROOMS'];
+  const availableModes = availableBookingModes(availability);
 
   React.useEffect(() => {
     if (value.mode === 'FULL_COTTAGE' && !fullAvailable) {
@@ -293,22 +332,7 @@ export function RoomBedPicker({
 
   const setMode = (mode: BookingMode) => {
     if (mode === value.mode) return;
-    if (mode === 'FULL_COTTAGE') {
-      // Promote room participants into the cottage list, but keep the room
-      // map intact so flipping back restores the ROOMS view.
-      const fromRooms = flattenRoomParticipants(value.rooms);
-      const next = mergeParticipants(value.fullCottageParticipants, fromRooms);
-      onChange({
-        ...value,
-        mode: 'FULL_COTTAGE',
-        fullCottageParticipants:
-          next.length > 0 ? next : [defaultPickFor(users, bookedIds, currentUserId)],
-      });
-    } else {
-      // Switching back to ROOMS just changes the active mode — both stores
-      // were preserved across the prior switch.
-      onChange({ ...value, mode: 'ROOMS' });
-    }
+    onChange(selectionWithMode(value, mode, { users, bookedIds, currentUserId }));
   };
 
   /**
@@ -553,15 +577,19 @@ export function RoomBedPicker({
   return (
     <BookedUsersContext.Provider value={bookedIds}>
     <div className="flex flex-col gap-5">
-      <ModeToggle
-        value={value.mode}
-        onChange={setMode}
-        modes={availableModes}
-        labels={{
-          FULL_COTTAGE: t('modeWholeCottage'),
-          ROOMS: t('modeRooms'),
-        }}
-      />
+      {showModeToggle && (
+        <ModeToggle
+          value={value.mode}
+          onChange={setMode}
+          modes={availableModes}
+          labels={{
+            FULL_COTTAGE: t('modeWholeCottage'),
+            ROOMS: t('modeRooms'),
+          }}
+        />
+      )}
+
+      {belowModeToggle}
 
       {value.mode === 'FULL_COTTAGE' && (
         <div
@@ -578,7 +606,7 @@ export function RoomBedPicker({
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold">{t('fullCottage')}</h3>
+                <h2 className="text-base font-semibold">{t('fullCottage')}</h2>
                 <PendingDot names={fullPendingNames} />
               </div>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
@@ -950,7 +978,7 @@ function ParticipantPicker({
   );
 }
 
-function ModeToggle({
+export function ModeToggle({
   value,
   onChange,
   modes,

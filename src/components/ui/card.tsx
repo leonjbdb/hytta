@@ -24,10 +24,15 @@ export const CardHeader = ({
 );
 
 export const CardTitle = ({
+  as: Tag = 'h3',
   className,
   ...props
-}: React.HTMLAttributes<HTMLHeadingElement>) => (
-  <h3
+}: React.HTMLAttributes<HTMLHeadingElement> & {
+  /** Heading level — set to keep the document outline contiguous (e.g. `h2`
+   *  directly under a page `h1`). Defaults to `h3`. */
+  as?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+}) => (
+  <Tag
     className={cn('text-xl font-semibold leading-tight tracking-tight', className)}
     {...props}
   />

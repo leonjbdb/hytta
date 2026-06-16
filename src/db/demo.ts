@@ -12,9 +12,12 @@
  * `.env.example` and `src/lib/bootstrap.ts`). Everything below is invented
  * placeholder content with `@example.com` addresses; none of it is personal.
  *
- * Idempotent: every row uses a deterministic `demo-*` id and inserts with
- * `onConflictDoNothing`, so re-running adds nothing. To start over, run
- * `bun run db:reset` first.
+ * Additive & idempotent: every row uses a deterministic `demo-*` id and is
+ * inserted with `onConflictDoNothing`, so re-running adds the demo content to
+ * an existing instance without deleting or replacing anything else. The one
+ * exception is the demo accounts' password hash, which is refreshed on every
+ * run so a changed `DEMO_PASSWORD` takes effect without a reset. To start from
+ * a clean slate instead, run `bun run db:reset` first.
  *
  * Guarded: the loader refuses production/CI-like environments and explicitly
  * disables Wrangler remote bindings, so it can only write to the local
@@ -23,10 +26,15 @@
  * Inserts:
  *   - cottage name "Granheim" (so the /setup gate is already satisfied)
  *   - 4 demo members, all sharing the same password (printed at the end)
- *   - 4 rooms (3 bed-based, 1 slot-based) with their beds
- *   - 5 upcoming bookings spanning room / bed / slot / whole-cottage / guest
+ *   - 4 rooms (3 bed-based, 1 slot-based) with their beds, coloured from the
+ *     real selectable palette (see ROOM_COLOR_PALETTE)
+ *   - bookings covering every state: single- and multi-person stays, a two-
+ *     guest stay, a standalone pending request, two conflicting pending
+ *     requests, and a cancelled one
+ *   - invitations from the admin in every state: an open link, two awaiting a
+ *     named recipient, an expired one, and a revoked one
  *   - a few dugnad (chores), one completed by someone other than its creator
- *   - one group template
+ *   - two group templates (one with a guest member)
  */
 import { getPlatformProxy, type GetPlatformProxyOptions } from 'wrangler';
 import { drizzleFor, type DB } from './client';
@@ -36,6 +44,7 @@ import {
   dugnadTasks,
   groupMembers,
   groupTemplates,
+  invitations,
   reservations,
   rooms,
   users,
@@ -67,7 +76,7 @@ function assertLocalDemoRun(): void {
 }
 
 /** Shared login for every demo account. Printed at the end of the run. */
-const DEMO_PASSWORD = 'demohytta2026';
+const DEMO_PASSWORD = 'password';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** ISO `YYYY-MM-DD`, `offsetDays` from today, so bookings are always upcoming. */
@@ -107,7 +116,7 @@ const DEMO_ROOMS: DemoRoom[] = [
     nameNb: 'Loftet',
     nameEn: 'The Loft',
     icon: 'bed-double',
-    color: '#0ea5e9',
+    color: '#3b82f6', // sky
     capacityMode: 'BEDS',
     beds: [
       { id: 'demo-bed-loft-d', kind: 'DOUBLE', label: 'LOFT-DOUBLE' },
@@ -119,7 +128,7 @@ const DEMO_ROOMS: DemoRoom[] = [
     nameNb: 'Hemsen',
     nameEn: 'The Mezzanine',
     icon: 'bed-single',
-    color: '#14b8a6',
+    color: '#14b8a6', // mint
     capacityMode: 'BEDS',
     beds: [
       { id: 'demo-bed-hems-1', kind: 'SINGLE', label: 'HEMS-1' },
@@ -131,7 +140,7 @@ const DEMO_ROOMS: DemoRoom[] = [
     nameNb: 'Anneks',
     nameEn: 'The Annex',
     icon: 'tree',
-    color: '#22c55e',
+    color: '#16a34a', // forest
     capacityMode: 'BEDS',
     beds: [{ id: 'demo-bed-anneks-d', kind: 'DOUBLE', label: 'ANNEX-DOUBLE' }],
   },
@@ -140,7 +149,7 @@ const DEMO_ROOMS: DemoRoom[] = [
     nameNb: 'Stua',
     nameEn: 'The Living Room',
     icon: 'sofa',
-    color: '#f59e0b',
+    color: '#f97316', // coral
     capacityMode: 'SLOTS',
     slotCount: 4,
   },
@@ -148,6 +157,10 @@ const DEMO_ROOMS: DemoRoom[] = [
 
 interface DemoBooking {
   id: string;
+  /** Groups multiple participant rows into one booking. Defaults to `id` (the
+   *  single-participant convention). Rows sharing a `bookingId` are one booking
+   *  with several people. */
+  bookingId?: string;
   bookerId: string;
   /** Participant: a user id, or a guest name (exactly one). */
   userId?: string;
@@ -161,16 +174,32 @@ interface DemoBooking {
 }
 
 const DEMO_BOOKINGS: DemoBooking[] = [
+  /* --- single-person bookings --- */
   // A whole room for a long weekend.
   { id: 'demo-res-loft', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'ROOM', roomId: 'demo-room-loft', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
   // The whole cottage for a week, booked by the admin.
   { id: 'demo-res-full', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'FULL_COTTAGE', startOffset: 20, endOffset: 27, status: 'CONFIRMED' },
-  // A single bed request still awaiting manager approval (Astrid is a manager).
-  { id: 'demo-res-bed', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 5, endOffset: 6, status: 'PENDING' },
-  // A guest (no account) booked into the annex by the admin.
-  { id: 'demo-res-guest', bookerId: 'demo-astrid', guestName: 'Besteforeldrene', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
   // A slot in the slots-mode living room.
   { id: 'demo-res-slot', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 6, endOffset: 7, status: 'CONFIRMED' },
+
+  /* --- multi-person bookings (rows share a bookingId) --- */
+  // Two friends (guests, no accounts) sharing the annex, booked by the admin.
+  { id: 'demo-res-friends-1', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Ola Nordmann', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
+  { id: 'demo-res-friends-2', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Kari Berg', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
+  // A whole-cottage stay for three: two members and a guest.
+  { id: 'demo-res-fam-astrid', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
+  { id: 'demo-res-fam-maja', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', userId: 'demo-maja', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
+  { id: 'demo-res-fam-guest', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', guestName: 'Per Lie', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
+
+  /* --- pending requests --- */
+  // A standalone request awaiting approval — conflicts with nothing.
+  { id: 'demo-res-bed', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 5, endOffset: 6, status: 'PENDING' },
+  // Two requests that CONFLICT: same single bed, overlapping dates, both pending.
+  { id: 'demo-res-conflict-a', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 14, endOffset: 17, status: 'PENDING' },
+  { id: 'demo-res-conflict-b', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 15, endOffset: 18, status: 'PENDING' },
+
+  /* --- a cancelled booking, for the cancelled state --- */
+  { id: 'demo-res-cancelled', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'ROOM', roomId: 'demo-room-loft', startOffset: 70, endOffset: 72, status: 'CANCELLED' },
 ];
 
 interface DemoDugnad {
@@ -223,6 +252,75 @@ const DEMO_DUGNAD: DemoDugnad[] = [
   },
 ];
 
+interface DemoGroupMember {
+  id: string;
+  /** A registered user OR a guest name — exactly one. */
+  userId?: string;
+  guestName?: string;
+  preferredRoomId?: string;
+  preferredBedId?: string;
+}
+
+interface DemoGroup {
+  id: string;
+  name: string;
+  createdBy: string;
+  members: DemoGroupMember[];
+}
+
+const DEMO_GROUPS: DemoGroup[] = [
+  // Member ids match the original single-group seed so re-running doesn't add
+  // duplicate rows to an already-seeded instance.
+  {
+    id: 'demo-group-fam',
+    name: 'Familien Solberg',
+    createdBy: 'demo-astrid',
+    members: [
+      { id: 'demo-gm-astrid', userId: 'demo-astrid', preferredRoomId: 'demo-room-loft' },
+      { id: 'demo-gm-henrik', userId: 'demo-henrik', preferredRoomId: 'demo-room-hems' },
+      { id: 'demo-gm-maja', userId: 'demo-maja', preferredRoomId: 'demo-room-anneks' },
+    ],
+  },
+  // A second group with a guest member, to exercise mixed user/guest groups.
+  {
+    id: 'demo-group-venner',
+    name: 'Vennegjengen',
+    createdBy: 'demo-henrik',
+    members: [
+      { id: 'demo-gm-venner-henrik', userId: 'demo-henrik', preferredRoomId: 'demo-room-loft', preferredBedId: 'demo-bed-loft-s' },
+      { id: 'demo-gm-venner-jonas', userId: 'demo-jonas', preferredRoomId: 'demo-room-stua' },
+      { id: 'demo-gm-venner-guest', guestName: 'Kari Berg' },
+    ],
+  },
+];
+
+interface DemoInvite {
+  id: string;
+  token: string;
+  /** Pre-bound recipient address; omit for an open shareable link. */
+  email?: string;
+  /** Null/omit = unlimited multi-use; otherwise the cap. */
+  maxUses?: number | null;
+  useCount?: number;
+  /** Days from now until expiry; negative = already expired. */
+  expiresInDays: number;
+  /** Days ago it was revoked; omit for active invites. */
+  revokedDaysAgo?: number;
+}
+
+// Every invite is sent by the admin (Astrid), covering each lifecycle state.
+const DEMO_INVITES: DemoInvite[] = [
+  // An open, shareable multi-use link — partly used, still active.
+  { id: 'demo-inv-link', token: 'demo-invite-open-link', maxUses: 10, useCount: 3, expiresInDays: 30 },
+  // Email-bound invites awaiting their recipient (single-use, unused).
+  { id: 'demo-inv-kari', token: 'demo-invite-kari', email: 'kari@example.com', maxUses: 1, useCount: 0, expiresInDays: 14 },
+  { id: 'demo-inv-per', token: 'demo-invite-per', email: 'per@example.com', maxUses: 1, useCount: 0, expiresInDays: 14 },
+  // An expired invite that was never accepted.
+  { id: 'demo-inv-expired', token: 'demo-invite-expired', email: 'gammel@example.com', maxUses: 1, useCount: 0, expiresInDays: -3 },
+  // A revoked invite.
+  { id: 'demo-inv-revoked', token: 'demo-invite-revoked', maxUses: 5, useCount: 1, expiresInDays: 30, revokedDaysAgo: 1 },
+];
+
 async function loadCottage(db: DB): Promise<void> {
   await db
     .insert(cottageSettings)
@@ -248,8 +346,11 @@ async function loadUsers(db: DB): Promise<void> {
         isManager: u.isManager ?? false,
         isInvitee: true,
         notifyEnabled: true,
+        firstLoginCompletedAt: Math.floor(Date.now() / 1000),
       })
-      .onConflictDoNothing({ target: users.id })
+      // Refresh the password on re-run so a changed DEMO_PASSWORD applies to
+      // already-seeded demo accounts; everything else is left untouched.
+      .onConflictDoUpdate({ target: users.id, set: { passwordHash } })
       .run();
   }
 }
@@ -285,8 +386,9 @@ async function loadBookings(db: DB): Promise<void> {
       .insert(reservations)
       .values({
         id: b.id,
-        // Single-target bookings set bookingId to their own row id by convention.
-        bookingId: b.id,
+        // Rows sharing a bookingId are one booking; single-person rows default
+        // their bookingId to their own row id.
+        bookingId: b.bookingId ?? b.id,
         bookerId: b.bookerId,
         userId: b.userId ?? null,
         guestName: b.guestName ?? null,
@@ -325,28 +427,47 @@ async function loadDugnad(db: DB): Promise<void> {
   }
 }
 
-async function loadGroup(db: DB): Promise<void> {
-  await db
-    .insert(groupTemplates)
-    .values({ id: 'demo-group-fam', name: 'Familien Solberg', createdBy: 'demo-astrid' })
-    .onConflictDoNothing({ target: groupTemplates.id })
-    .run();
-  const members = [
-    { id: 'demo-gm-astrid', userId: 'demo-astrid', preferredRoomId: 'demo-room-loft', position: 0 },
-    { id: 'demo-gm-henrik', userId: 'demo-henrik', preferredRoomId: 'demo-room-hems', position: 1 },
-    { id: 'demo-gm-maja', userId: 'demo-maja', preferredRoomId: 'demo-room-anneks', position: 2 },
-  ];
-  for (const m of members) {
+async function loadGroups(db: DB): Promise<void> {
+  for (const g of DEMO_GROUPS) {
     await db
-      .insert(groupMembers)
+      .insert(groupTemplates)
+      .values({ id: g.id, name: g.name, createdBy: g.createdBy })
+      .onConflictDoNothing({ target: groupTemplates.id })
+      .run();
+    for (const [position, m] of g.members.entries()) {
+      await db
+        .insert(groupMembers)
+        .values({
+          id: m.id,
+          groupId: g.id,
+          userId: m.userId ?? null,
+          guestName: m.guestName ?? null,
+          preferredRoomId: m.preferredRoomId ?? null,
+          preferredBedId: m.preferredBedId ?? null,
+          position,
+        })
+        .onConflictDoNothing({ target: groupMembers.id })
+        .run();
+    }
+  }
+}
+
+async function loadInvites(db: DB): Promise<void> {
+  for (const inv of DEMO_INVITES) {
+    await db
+      .insert(invitations)
       .values({
-        id: m.id,
-        groupId: 'demo-group-fam',
-        userId: m.userId,
-        preferredRoomId: m.preferredRoomId,
-        position: m.position,
+        id: inv.id,
+        token: inv.token,
+        createdBy: 'demo-astrid',
+        maxUses: inv.maxUses ?? null,
+        useCount: inv.useCount ?? 0,
+        email: inv.email ?? null,
+        expiresAt: new Date(Date.now() + inv.expiresInDays * DAY_MS),
+        revokedAt:
+          inv.revokedDaysAgo != null ? new Date(Date.now() - inv.revokedDaysAgo * DAY_MS) : null,
       })
-      .onConflictDoNothing({ target: groupMembers.id })
+      .onConflictDoNothing({ target: invitations.id })
       .run();
   }
 }
@@ -366,8 +487,10 @@ async function main() {
     await loadBookings(db);
     console.log('[demo] dugnad…');
     await loadDugnad(db);
-    console.log('[demo] group template…');
-    await loadGroup(db);
+    console.log('[demo] groups…');
+    await loadGroups(db);
+    console.log('[demo] invitations…');
+    await loadInvites(db);
     console.log(`\n[demo] done — cottage "${COTTAGE_NAME}" is ready.`);
     console.log('[demo] sign in with any of:');
     for (const u of DEMO_USERS) {

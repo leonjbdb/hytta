@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { setRequestLocale } from 'next-intl/server';
 import { isCottageConfigured } from '@/lib/cottage';
+import { PublicPreferences } from '@/components/PublicPreferences';
 import { SetupForm } from './SetupForm';
 
 /**
@@ -22,8 +23,13 @@ export default async function SetupPage({
   if (await isCottageConfigured()) redirect('/login');
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-md flex-col justify-center px-4 py-10">
-      <SetupForm />
-    </main>
+    <div className="min-h-svh">
+      <div className="mx-auto flex w-full max-w-md justify-end px-4 pt-4">
+        <PublicPreferences />
+      </div>
+      <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] w-full max-w-md flex-col justify-center px-4 py-10">
+        <SetupForm />
+      </main>
+    </div>
   );
 }

@@ -8,6 +8,13 @@
       "when": 1781564279964,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781606872445,
+      "tag": "0001_premium_paper_doll",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { CalendarPlus, Check, ChevronDown, ChevronRight, CircleCheck, Pencil, X } from 'lucide-react';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { PersonBadge } from '@/components/PersonBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -119,10 +119,8 @@ export function Dashboard({
             {t('subtitle', { cottage: tBrand('name') })}
           </p>
         </div>
-        <Link href="/book">
-          <Button>
-            <CalendarPlus className="size-4" /> {t('newBooking')}
-          </Button>
+        <Link href="/book" className={buttonVariants()}>
+          <CalendarPlus className="size-4" /> {t('newBooking')}
         </Link>
       </header>
 

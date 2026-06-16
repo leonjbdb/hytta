@@ -204,7 +204,7 @@ export function GroupEdit({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t('settingsHeading')}</CardTitle>
+          <CardTitle as="h2" className="text-base">{t('settingsHeading')}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
@@ -227,7 +227,7 @@ export function GroupEdit({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t('membersHeading')}</CardTitle>
+          <CardTitle as="h2" className="text-base">{t('membersHeading')}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {group.members.length === 0 && (
@@ -253,6 +253,7 @@ export function GroupEdit({
                   <span className="ml-auto flex items-center gap-2">
                     {roomBeds.length > 0 && (
                       <select
+                        aria-label={t('memberBedFor', { name: label })}
                         value={m.preferredBedId ?? ''}
                         onChange={(e) => updateBed(m.id, e.target.value || null)}
                         className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs"
@@ -273,6 +274,7 @@ export function GroupEdit({
                       </select>
                     )}
                     <select
+                      aria-label={t('memberRoomFor', { name: label })}
                       value={m.preferredRoomId ?? ''}
                       onChange={(e) => updateRoom(m.id, e.target.value || null)}
                       className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs"

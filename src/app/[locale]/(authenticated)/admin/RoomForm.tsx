@@ -53,28 +53,42 @@ export function RoomFormFields({
   onSlotCount: (v: number) => void;
 }) {
   const t = useTranslations('Admin');
+  // Unique per instance so labels associate correctly even when several copies
+  // of this form render at once (e.g. an inline edit plus the "add room" form).
+  const fieldId = React.useId();
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <Label>{t('roomNameNb')}</Label>
+          <Label htmlFor={`${fieldId}-name-nb`}>{t('roomNameNb')}</Label>
           <Input
+            id={`${fieldId}-name-nb`}
             value={nameNb}
             onChange={(e) => onNameNb(e.target.value)}
             placeholder={t('roomNameNbPlaceholder')}
           />
         </div>
         <div className="flex flex-col gap-1">
-          <Label>{t('roomNameEn')}</Label>
+          <Label htmlFor={`${fieldId}-name-en`}>{t('roomNameEn')}</Label>
           <Input
+            id={`${fieldId}-name-en`}
             value={nameEn}
             onChange={(e) => onNameEn(e.target.value)}
             placeholder={t('roomNameEnPlaceholder')}
           />
         </div>
         <div className="flex flex-col gap-1">
-          <Label>{t('roomIcon')}</Label>
-          <div className="flex flex-wrap gap-1">
+          <span
+            id={`${fieldId}-icon-label`}
+            className="text-sm font-medium leading-none text-[var(--foreground)]"
+          >
+            {t('roomIcon')}
+          </span>
+          <div
+            role="group"
+            aria-labelledby={`${fieldId}-icon-label`}
+            className="flex flex-wrap gap-1"
+          >
             {ROOM_ICONS.map((opt) => (
               <button
                 key={opt.name}
@@ -94,8 +108,17 @@ export function RoomFormFields({
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <Label>{t('roomColor')}</Label>
-          <div className="flex flex-wrap gap-1.5">
+          <span
+            id={`${fieldId}-color-label`}
+            className="text-sm font-medium leading-none text-[var(--foreground)]"
+          >
+            {t('roomColor')}
+          </span>
+          <div
+            role="group"
+            aria-labelledby={`${fieldId}-color-label`}
+            className="flex flex-wrap gap-1.5"
+          >
             {ROOM_COLOR_PALETTE.map((opt) => (
               <button
                 key={opt.name}
@@ -109,9 +132,7 @@ export function RoomFormFields({
                     : 'border-[var(--border)]'
                 }`}
                 style={{ backgroundColor: opt.value }}
-              >
-                <span className="sr-only">{opt.label}</span>
-              </button>
+              />
             ))}
           </div>
         </div>
@@ -154,8 +175,11 @@ export function RoomFormFields({
           </label>
           {!unlimited && (
             <div className="flex items-center gap-2">
-              <Label className="text-xs">{t('slotCount')}</Label>
+              <Label htmlFor={`${fieldId}-slot-count`} className="text-xs">
+                {t('slotCount')}
+              </Label>
               <Input
+                id={`${fieldId}-slot-count`}
                 type="number"
                 min={1}
                 max={50}
@@ -203,6 +227,11 @@ export function NewRoomForm({
     setSlotCount(2);
     setNewBeds([]);
   };
+
+  // A bed-mode room needs at least one bed; a slot-mode room always has
+  // capacity (a positive number, or unlimited). Mirrors the server guard so the
+  // operator can't submit an empty room.
+  const needsBed = mode === 'BEDS' && newBeds.length === 0;
 
   const submit = () => {
     startTransition(async () => {
@@ -255,9 +284,13 @@ export function NewRoomForm({
           />
         )}
 
+        {needsBed && (
+          <p className="text-xs text-[var(--muted-foreground)]">{t('roomNeedsBed')}</p>
+        )}
+
         <Button
           onClick={submit}
-          disabled={pending || !nameNb.trim() || !nameEn.trim()}
+          disabled={pending || !nameNb.trim() || !nameEn.trim() || needsBed}
           className="self-start"
         >
           {pending && <Loader2 className="size-4 animate-spin" />}

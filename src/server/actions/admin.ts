@@ -42,6 +42,13 @@ const RoomCreate = z
   })
   .refine((v) => v.capacityMode !== 'SLOTS' || (v.beds ?? []).length === 0, {
     message: 'Slot rooms cannot have beds',
+  })
+  // A new room must have actual capacity: a bed-mode room needs at least one
+  // bed, and a slot-mode room needs a positive capacity (or unlimited). The
+  // slot side is already covered by `slotCount` being positive-or-null, so the
+  // only gap to close here is a bed-mode room created with no beds.
+  .refine((v) => v.capacityMode !== 'BEDS' || (v.beds ?? []).length >= 1, {
+    message: 'Add at least one bed before creating this area',
   });
 
 const RoomUpdate = z.object({

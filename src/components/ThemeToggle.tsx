@@ -10,8 +10,19 @@ export function ThemeToggle() {
   const t = useTranslations('Common');
   const label = theme === 'dark' ? t('themeLight') : t('themeDark');
   return (
-    <Button variant="ghost" size="icon" aria-label={label} title={label} onClick={toggle}>
-      {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-pressed={theme === 'dark'}
+      onClick={toggle}
+    >
+      <span className="sr-only">{label}</span>
+      {theme === 'dark' ? (
+        <Sun className="size-4" aria-hidden />
+      ) : (
+        <Moon className="size-4" aria-hidden />
+      )}
     </Button>
   );
 }

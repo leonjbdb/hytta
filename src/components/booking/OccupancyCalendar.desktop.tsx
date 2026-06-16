@@ -12,8 +12,10 @@ import { DayDetailsDialog } from './DayDetailsDialog';
 import {
   CustomDayButton,
   OccupancyContext,
+  RANGE_CONTINUATION_CLASSNAMES,
   RoomLegend,
   addMonths,
+  getRangeContinuationModifiers,
   startOfMonth,
   startOfToday,
   useOccupancyCalendar,
@@ -45,6 +47,8 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
       <DayPicker
         mode="range"
         selected={selection.value}
+        modifiers={getRangeContinuationModifiers(selection.value)}
+        modifiersClassNames={RANGE_CONTINUATION_CLASSNAMES}
         onSelect={(_next, triggerDate) => ctrl.handleDayClick(triggerDate)}
         month={month}
         onMonthChange={setMonth}
@@ -118,11 +122,11 @@ const DESKTOP_CLASSNAMES = {
   selected:
     '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)]',
   range_start:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-l-md [&_button]:rounded-r-none',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-l-md [&_button]:rounded-r-none [&:last-child_button]:rounded-r-md',
   range_end:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-r-md [&_button]:rounded-l-none',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-r-md [&_button]:rounded-l-none [&:first-child_button]:rounded-l-md',
   range_middle:
-    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,color-mix(in_oklch,var(--primary),transparent_60%),black_20%)] [&_button]:rounded-none',
+    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,color-mix(in_oklch,var(--primary),transparent_60%),black_20%)] [&_button]:rounded-none [&:first-child_button]:rounded-l-md [&:last-child_button]:rounded-r-md',
   today: 'hytta-today',
   disabled: 'opacity-30',
   outside: 'opacity-0',
@@ -180,61 +184,65 @@ function CalendarHeader({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-center gap-2">
+    <div className="mx-auto flex w-[calc(7*3rem)] flex-col gap-2">
+      {/* Header spans the same width as the 7-column day grid (7 × the w-12 day
+          cell = 21rem), so the controls line up with the calendar. Month + year
+          selects: the month fills the row, the year is fixed. */}
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <SearchableSelect
+            label={monthLabel}
+            options={monthOptions}
+            value={String(month.getMonth())}
+            onChange={(id) => setMonthIdx(Number(id))}
+            allowCustom={(q) => {
+              const n = Number(q);
+              if (!Number.isInteger(n)) return null;
+              if (n < 1 || n > 12) return null;
+              return String(n - 1);
+            }}
+          />
+        </div>
+        <div className="w-20 shrink-0">
+          <SearchableSelect
+            label={yearLabel}
+            options={yearOptions}
+            value={String(month.getFullYear())}
+            onChange={(id) => setYear(Number(id))}
+            allowCustom={(q) => {
+              const n = Number(q);
+              if (!Number.isInteger(n)) return null;
+              if (n < 1970 || n > 2999) return null;
+              return String(n);
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Step a month at a time, or jump back to the current month. The Today
+          button flexes to fill the row, so it spans the grid width too. */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={prevLabel}
+          onClick={() => onMonthChange(addMonths(month, -1))}
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)]"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
         <button
           type="button"
           onClick={() => onMonthChange(startOfMonth(today))}
           disabled={isCurrentMonth}
-          className="self-end rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--muted)] disabled:opacity-40"
+          className="inline-flex h-9 flex-1 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] text-xs font-medium hover:bg-[var(--muted)] disabled:opacity-40"
         >
           {todayLabel}
         </button>
         <button
           type="button"
-          aria-label={prevLabel}
-          onClick={() => onMonthChange(addMonths(month, -1))}
-          className="inline-flex size-8 shrink-0 items-center justify-center self-end rounded-md border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)]"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-
-        <div className="flex items-center gap-2">
-          <div className="w-44 shrink-0">
-            <SearchableSelect
-              label={monthLabel}
-              options={monthOptions}
-              value={String(month.getMonth())}
-              onChange={(id) => setMonthIdx(Number(id))}
-              allowCustom={(q) => {
-                const n = Number(q);
-                if (!Number.isInteger(n)) return null;
-                if (n < 1 || n > 12) return null;
-                return String(n - 1);
-              }}
-            />
-          </div>
-          <div className="w-24 shrink-0">
-            <SearchableSelect
-              label={yearLabel}
-              options={yearOptions}
-              value={String(month.getFullYear())}
-              onChange={(id) => setYear(Number(id))}
-              allowCustom={(q) => {
-                const n = Number(q);
-                if (!Number.isInteger(n)) return null;
-                if (n < 1970 || n > 2999) return null;
-                return String(n);
-              }}
-            />
-          </div>
-        </div>
-
-        <button
-          type="button"
           aria-label={nextLabel}
           onClick={() => onMonthChange(addMonths(month, 1))}
-          className="inline-flex size-8 shrink-0 items-center justify-center self-end rounded-md border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)]"
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)]"
         >
           <ChevronRight className="size-4" />
         </button>

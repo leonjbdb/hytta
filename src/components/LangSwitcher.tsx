@@ -16,8 +16,7 @@ export function LangSwitcher() {
   const t = useTranslations('LangSwitcher');
 
   return (
-    <label className="inline-flex items-center gap-2 text-sm">
-      <span className="sr-only">{t('label')}</span>
+    <div className="inline-flex items-center gap-2 text-sm">
       <Globe className="size-4 text-[var(--muted-foreground)]" aria-hidden />
       <span className="relative inline-flex items-center">
         <select
@@ -41,6 +40,6 @@ export function LangSwitcher() {
           className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]"
         />
       </span>
-    </label>
+    </div>
   );
 }

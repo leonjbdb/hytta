@@ -1,9 +1,18 @@
-import { aliasedTable, and, eq, or } from 'drizzle-orm';
+import { aliasedTable, and, eq, isNull, ne, or, type SQL } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { beds, reservations, rooms, users } from '@/db/schema';
 import { buildIcs, type IcsEvent } from './ics';
 
-export type FeedScope = 'me' | 'all';
+/**
+ * Which reservations a feed includes, relative to the viewer:
+ * - `my-stays`        → rows where the viewer is the participant (sleeping there)
+ * - `my-bookings`     → bookings the viewer created (any participant)
+ * - `others-bookings` → bookings created by someone else
+ * - `everyone`        → every active booking on the cottage
+ *
+ * All but `everyone` require a `viewerId`.
+ */
+export type FeedScope = 'my-stays' | 'my-bookings' | 'others-bookings' | 'everyone';
 
 interface FeedRow {
   rowId: string;
@@ -30,7 +39,7 @@ interface BuildOptions {
   /** Locale used to pick room names; defaults to nb-NO. */
   locale: 'nb-NO' | 'en-GB';
   scope: FeedScope;
-  /** Required when `scope === 'me'`. The personal owner of the feed. */
+  /** Required for every scope except `everyone`. The personal owner of the feed. */
   viewerId?: string;
   /** Cottage display name — prefixes event summaries and the calendar name. */
   cottageName: string;
@@ -71,8 +80,8 @@ const participantOf = (row: FeedRow): string =>
  */
 export async function buildFeed(opts: BuildOptions): Promise<string> {
   const { scope, viewerId, locale, cottageName } = opts;
-  if (scope === 'me' && !viewerId) {
-    throw new Error('viewerId is required when scope is "me"');
+  if (scope !== 'everyone' && !viewerId) {
+    throw new Error(`viewerId is required when scope is "${scope}"`);
   }
 
   const participantUser = aliasedTable(users, 'participant_user');
@@ -112,21 +121,25 @@ export async function buildFeed(opts: BuildOptions): Promise<string> {
     eq(reservations.status, 'CONFIRMED'),
     eq(reservations.status, 'PENDING'),
   )!;
-  const rows = (
-    scope === 'me'
-      ? await baseQuery
-          .where(
-            and(
-              activeOnly,
-              or(
-                eq(reservations.userId, viewerId!),
-                eq(reservations.bookerId, viewerId!),
-              ),
-            ),
-          )
-          .all()
-      : await baseQuery.where(activeOnly).all()
-  ) as FeedRow[];
+  // Per-scope filter, relative to the viewer. `everyone` adds nothing.
+  let scopeFilter: SQL | undefined;
+  switch (scope) {
+    case 'my-stays':
+      scopeFilter = eq(reservations.userId, viewerId!);
+      break;
+    case 'my-bookings':
+      scopeFilter = eq(reservations.bookerId, viewerId!);
+      break;
+    case 'others-bookings':
+      // Booked by anyone other than the viewer — including rows with no booker.
+      scopeFilter = or(ne(reservations.bookerId, viewerId!), isNull(reservations.bookerId));
+      break;
+    case 'everyone':
+      scopeFilter = undefined;
+      break;
+  }
+  const where = scopeFilter ? and(activeOnly, scopeFilter) : activeOnly;
+  const rows = (await baseQuery.where(where).all()) as FeedRow[];
 
   // Group by booking — a booking with N participants becomes one VEVENT.
   interface Group {
@@ -205,14 +218,14 @@ export async function buildFeed(opts: BuildOptions): Promise<string> {
     };
   });
 
-  const calendarName =
-    scope === 'me'
-      ? locale === 'en-GB'
-        ? `${cottageName} — my stays`
-        : `${cottageName} — mine opphold`
-      : locale === 'en-GB'
-        ? `${cottageName} — all bookings`
-        : `${cottageName} — alle reservasjoner`;
+  const en = locale === 'en-GB';
+  const scopeSuffix: Record<FeedScope, string> = {
+    'my-stays': en ? 'my stays' : 'mine opphold',
+    'my-bookings': en ? 'my bookings' : 'mine bestillinger',
+    'others-bookings': en ? "others' bookings" : 'andres bestillinger',
+    everyone: en ? 'all bookings' : 'alle reservasjoner',
+  };
+  const calendarName = `${cottageName} — ${scopeSuffix[scope]}`;
 
   return buildIcs(events, calendarName);
 }

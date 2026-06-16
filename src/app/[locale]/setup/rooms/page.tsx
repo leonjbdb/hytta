@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { auth, signOut } from '@/lib/auth/config';
 import { isCottageConfigured } from '@/lib/cottage';
 import { hasAnyRoom } from '@/lib/rooms';
+import { PublicPreferences } from '@/components/PublicPreferences';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -36,9 +37,14 @@ export default async function RoomSetupPage({
   if (!session.user.isAdmin) {
     if (await hasAnyRoom()) redirect('/');
     return (
-      <main className="mx-auto flex min-h-svh w-full max-w-md flex-col justify-center px-4 py-10">
-        <NoRoomsNotice />
-      </main>
+      <div className="min-h-svh">
+        <div className="mx-auto flex w-full max-w-md justify-end px-4 pt-4">
+          <PublicPreferences />
+        </div>
+        <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] w-full max-w-md flex-col justify-center px-4 py-10">
+          <NoRoomsNotice />
+        </main>
+      </div>
     );
   }
 
