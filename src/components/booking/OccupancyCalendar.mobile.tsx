@@ -36,19 +36,6 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
   const ctrl = useOccupancyCalendar(props);
   const { month, setMonth, occupancy, fullyBookedSet, detailsDate, detailsAssignments } = ctrl;
 
-  const occupancyContext = React.useMemo(
-    // Cells are now responsive (1/7 of the grid); ~48 is a representative width
-    // for sizing the room icons (the icon size is clamped anyway).
-    () => ({
-      byDay: occupancy,
-      rooms,
-      fullyBooked: fullyBookedSet,
-      cellWidth: 48,
-      onDayHover: ctrl.setHoverDate,
-    }),
-    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate],
-  );
-
   // While picking the end date, preview the range the hovered day would produce
   // (recoloured lighter), reusing the committed range's styling.
   const rangeShown =
@@ -58,6 +45,20 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
   // the committed green once the end is clicked too.
   const rangeIncomplete =
     selection.mode === 'range' && Boolean(selection.value?.from) && !selection.value?.to;
+
+  const occupancyContext = React.useMemo(
+    // Cells are now responsive (1/7 of the grid); ~48 is a representative width
+    // for sizing the room icons (the icon size is clamped anyway).
+    () => ({
+      byDay: occupancy,
+      rooms,
+      fullyBooked: fullyBookedSet,
+      cellWidth: 48,
+      onDayHover: ctrl.setHoverDate,
+      slideFrom: rangeShown?.from ?? null,
+    }),
+    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate, rangeShown?.from],
+  );
 
   const dayPicker =
     selection.mode === 'range' ? (
@@ -142,12 +143,11 @@ const MOBILE_CLASSNAMES = {
   weekday:
     'text-[var(--muted-foreground)] text-[10px] font-medium uppercase tracking-wide pb-1',
   day: 'h-10 p-0 text-center text-sm align-middle relative',
-  // Transition the fill colour only — NOT border-radius. Animating the radius
-  // makes exiting cells round their corners as they fade (the caps mount/unmount
-  // as the boundary moves), so the corner shape snaps instantly to the right
-  // state while the fill fades smoothly underneath.
+  // The fill/border-radius transition lives in globals.css (.hytta-day-btn) so
+  // it can stagger the fill (slide) and lag the corner rounding (shape-preserving
+  // retract) — things Tailwind utilities can't express per-property.
   day_button:
-    'inline-flex h-10 w-full items-center justify-center rounded-md transition-colors duration-200 ease-out hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+    'inline-flex h-10 w-full items-center justify-center rounded-md hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
   // Selected/range days keep their green on hover, just a shade darker (the
   // default muted-bg hover would wipe the green out).
   selected:

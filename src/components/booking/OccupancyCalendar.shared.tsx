@@ -102,6 +102,13 @@ export interface OccupancyContextShape {
    * selection with a start but no end yet can preview where it would extend to.
    */
   onDayHover?: (date: Date | null) => void;
+  /**
+   * The start of the range currently being drawn (committed or preview). Each
+   * in-range day staggers its fill transition by its distance from this anchor,
+   * so the fill slides outward from the start (17 → 18 → 19 …) instead of every
+   * cell fading in at once.
+   */
+  slideFrom?: Date | null;
 }
 
 export const OccupancyContext = React.createContext<OccupancyContextShape>({
@@ -118,6 +125,10 @@ export const OccupancyContext = React.createContext<OccupancyContextShape>({
  */
 const MAX_DAY_ICONS = 3;
 const ICONS_PER_ROW = 5;
+// Range "slide": each cell delays its fill by (days-from-start × step), capped,
+// so an extending range sweeps out from the start instead of filling at once.
+const SLIDE_STEP_MS = 32;
+const SLIDE_MAX_MS = 320;
 
 /* ----------------------------- date helpers ---------------------------- */
 
@@ -527,7 +538,8 @@ function buildDayTooltipGroups(
 
 export function CustomDayButton(props: DayButtonProps) {
   const { day, modifiers, className, ...buttonProps } = props;
-  const { byDay, rooms, fullyBooked, cellWidth, onDayHover } = React.useContext(OccupancyContext);
+  const { byDay, rooms, fullyBooked, cellWidth, onDayHover, slideFrom } =
+    React.useContext(OccupancyContext);
   const t = useTranslations('Book');
   const locale = useLocale();
   const iso = toISODate(day.date);
@@ -568,6 +580,21 @@ export function CustomDayButton(props: DayButtonProps) {
   const iconSize = Math.max(6, Math.min(13, Math.floor((cellWidth - 6 - (cols - 1)) / cols)));
   const cottageSize = Math.round(cellWidth / 3);
 
+  // Slide: delay this cell's fill transition by its distance (in days) from the
+  // range start, so a freshly extended range fills cell-by-cell from the start
+  // rather than all at once. Only in-range cells get a delay; cells leaving the
+  // range get 0, so they retract promptly. Capped so very long ranges don't crawl.
+  const inRange = Boolean(modifiers?.selected);
+  const slideOffsetDays =
+    inRange && slideFrom
+      ? Math.round(
+          (Date.UTC(day.date.getFullYear(), day.date.getMonth(), day.date.getDate()) -
+            Date.UTC(slideFrom.getFullYear(), slideFrom.getMonth(), slideFrom.getDate())) /
+            86_400_000,
+        )
+      : 0;
+  const slideDelayMs = Math.min(Math.max(0, slideOffsetDays) * SLIDE_STEP_MS, SLIDE_MAX_MS);
+
   return (
     <button
       {...buttonProps}
@@ -580,8 +607,13 @@ export function CustomDayButton(props: DayButtonProps) {
         buttonProps.onMouseLeave?.(e);
         onDayHover?.(null);
       }}
+      style={{ ...buttonProps.style, ['--slide-delay']: `${slideDelayMs}ms` } as React.CSSProperties}
       className={cn(
         className,
+        // Owns the fill/border-radius transition (see globals.css) — the fill
+        // staggers by --slide-delay to slide, and border-radius lags so cells
+        // keep their shape while fading out instead of rounding their corners.
+        'hytta-day-btn',
         'group relative flex flex-col items-center justify-center gap-0.5',
         'cursor-pointer disabled:cursor-default',
         // Lift the hovered cell so its tooltip overlays neighbouring days.

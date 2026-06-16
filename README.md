@@ -1,5 +1,8 @@
 # Hytta
 
+> **🌐 Live demo: [hytta.de-backer.no](https://hytta.de-backer.no)** — try the app
+> with pre-loaded sample data. No setup required.
+
 A sleek, modern cottage-booking app — three colour-themed bedrooms, optional
 bed-level reservations in the red room, full-cottage bookings, calendar-driven
 availability, and authentication via email/password, Google, and Apple (all

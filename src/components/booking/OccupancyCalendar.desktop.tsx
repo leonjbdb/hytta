@@ -36,18 +36,6 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
   const ctrl = useOccupancyCalendar(props);
   const { month, setMonth, occupancy, fullyBookedSet, detailsDate, detailsAssignments } = ctrl;
 
-  const occupancyContext = React.useMemo(
-    // cellWidth 48 ≙ the `w-12` day cell below; sizes the room icons.
-    () => ({
-      byDay: occupancy,
-      rooms,
-      fullyBooked: fullyBookedSet,
-      cellWidth: 48,
-      onDayHover: ctrl.setHoverDate,
-    }),
-    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate],
-  );
-
   // While picking the end date, render (and recolour lighter) the range the
   // hovered day would produce, reusing the committed range's own styling.
   const rangeShown =
@@ -57,6 +45,19 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
   // the committed green once the end is clicked too.
   const rangeIncomplete =
     selection.mode === 'range' && Boolean(selection.value?.from) && !selection.value?.to;
+
+  const occupancyContext = React.useMemo(
+    // cellWidth 48 ≙ the `w-12` day cell below; sizes the room icons.
+    () => ({
+      byDay: occupancy,
+      rooms,
+      fullyBooked: fullyBookedSet,
+      cellWidth: 48,
+      onDayHover: ctrl.setHoverDate,
+      slideFrom: rangeShown?.from ?? null,
+    }),
+    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate, rangeShown?.from],
+  );
 
   const dayPicker =
     selection.mode === 'range' ? (
@@ -132,12 +133,11 @@ const DESKTOP_CLASSNAMES = {
   weekday:
     'text-[var(--muted-foreground)] w-12 text-[11px] font-medium uppercase tracking-wide pb-2',
   day: 'h-12 w-12 p-0 text-center text-sm align-middle relative',
-  // Transition the fill colour only — NOT border-radius. Animating the radius
-  // makes exiting cells round their corners as they fade (the caps mount/unmount
-  // as the boundary moves), so the corner shape snaps instantly to the right
-  // state while the fill fades smoothly underneath.
+  // The fill/border-radius transition lives in globals.css (.hytta-day-btn) so
+  // it can stagger the fill (slide) and lag the corner rounding (shape-preserving
+  // retract) — things Tailwind utilities can't express per-property.
   day_button:
-    'inline-flex h-12 w-12 items-center justify-center rounded-md transition-colors duration-200 ease-out hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+    'inline-flex h-12 w-12 items-center justify-center rounded-md hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
   // Selected/range days keep their green on hover, just a shade darker (the
   // default muted-bg hover would wipe the green out).
   selected:
