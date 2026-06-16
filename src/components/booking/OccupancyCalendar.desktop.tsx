@@ -132,8 +132,12 @@ const DESKTOP_CLASSNAMES = {
   weekday:
     'text-[var(--muted-foreground)] w-12 text-[11px] font-medium uppercase tracking-wide pb-2',
   day: 'h-12 w-12 p-0 text-center text-sm align-middle relative',
+  // Transition the fill colour only — NOT border-radius. Animating the radius
+  // makes exiting cells round their corners as they fade (the caps mount/unmount
+  // as the boundary moves), so the corner shape snaps instantly to the right
+  // state while the fill fades smoothly underneath.
   day_button:
-    'inline-flex h-12 w-12 items-center justify-center rounded-md transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+    'inline-flex h-12 w-12 items-center justify-center rounded-md transition-colors duration-200 ease-out hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
   // Selected/range days keep their green on hover, just a shade darker (the
   // default muted-bg hover would wipe the green out).
   selected:

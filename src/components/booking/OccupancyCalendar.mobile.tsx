@@ -142,8 +142,12 @@ const MOBILE_CLASSNAMES = {
   weekday:
     'text-[var(--muted-foreground)] text-[10px] font-medium uppercase tracking-wide pb-1',
   day: 'h-10 p-0 text-center text-sm align-middle relative',
+  // Transition the fill colour only — NOT border-radius. Animating the radius
+  // makes exiting cells round their corners as they fade (the caps mount/unmount
+  // as the boundary moves), so the corner shape snaps instantly to the right
+  // state while the fill fades smoothly underneath.
   day_button:
-    'inline-flex h-10 w-full items-center justify-center rounded-md transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+    'inline-flex h-10 w-full items-center justify-center rounded-md transition-colors duration-200 ease-out hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
   // Selected/range days keep their green on hover, just a shade darker (the
   // default muted-bg hover would wipe the green out).
   selected:
