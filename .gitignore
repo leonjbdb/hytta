@@ -21,6 +21,8 @@ next-env.d.ts
 # Environment & secrets (.env.example is committed)
 .env*.local
 .dev.vars
+wrangler.local.jsonc
+workers/booking-do/wrangler.local.jsonc
 
 # TypeScript / tooling caches
 *.tsbuildinfo

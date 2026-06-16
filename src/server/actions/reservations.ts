@@ -133,7 +133,8 @@ export async function cancelReservation(
   }
   try {
     await bookingWrites.cancel(session.user.id, reservationId, {
-      allowManager: Boolean(session.user.isManager),
+      // Admins and managers may cancel anyone's individual stay.
+      allowElevated: Boolean(session.user.isAdmin) || Boolean(session.user.isManager),
     });
     await notifyReservationCancelled(reservationId, session.user.id);
     revalidateBookingViews();

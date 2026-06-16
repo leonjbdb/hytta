@@ -3,10 +3,12 @@
 import * as React from 'react';
 import type { DateRange, DayButtonProps } from 'react-day-picker';
 import { useLocale, useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { cn, toISODate } from '@/lib/utils';
 import { fetchOccupancy, type DayAssignment } from '@/server/actions/availability';
+import { BOOKINGS_CHANGED_EVENT } from '@/lib/booking/refresh-events';
 import { roomLabel } from '@/lib/booking/room-label';
-import { RoomIcon } from './RoomIcon';
+import { FullCottageShape, RoomIcon } from './RoomIcon';
 
 /* --------------------------------------------------------------------- *
  * Reusable core for the occupancy calendar. Both `DateRangePicker` (the
@@ -85,19 +87,32 @@ export interface DayInfo {
   pending: boolean;
   /** Names awaiting approval that day — tooltip on the pending dot. */
   pendingParticipants: string[];
+  /** Capacity-aware: true only when no bookable space remains (server-computed). */
+  fullyBooked: boolean;
 }
 
 export interface OccupancyContextShape {
   byDay: Map<string, DayInfo>;
   rooms: OccupancyCalendarRoom[];
   fullyBooked: Set<string>;
+  /** Day-cell width in px — drives how big the room icons can be drawn. */
+  cellWidth: number;
 }
 
 export const OccupancyContext = React.createContext<OccupancyContextShape>({
   byDay: new Map(),
   rooms: [],
   fullyBooked: new Set(),
+  cellWidth: 48,
 });
+
+/**
+ * Most room icons we draw inside a day cell before collapsing to a single
+ * whole-cottage glyph. From 4 rooms up, the cell shows the cottage icon
+ * instead (the tooltip still lists every room).
+ */
+const MAX_DAY_ICONS = 3;
+const ICONS_PER_ROW = 5;
 
 /* ----------------------------- date helpers ---------------------------- */
 
@@ -122,6 +137,23 @@ export function parseISODate(iso: string): Date | null {
 function sameISODay(a: Date | undefined, b: Date): boolean {
   if (!a) return false;
   return toISODate(a) === toISODate(b);
+}
+
+/**
+ * Count days in the inclusive range [from, to] that are fully booked (whole
+ * cottage taken, or every slot filled). A stay occupies every day in the
+ * range — `daysInRange` is inclusive — so any fully-booked day in between
+ * makes the whole range unbookable.
+ */
+function fullyBookedDaysInRange(from: Date, to: Date, fullyBooked: Set<string>): number {
+  let count = 0;
+  const cur = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  while (cur <= end) {
+    if (fullyBooked.has(toISODate(cur))) count += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
 }
 
 /* ------------------------------ controller ----------------------------- */
@@ -155,6 +187,7 @@ export function useOccupancyCalendar({
   month: monthProp,
   onMonthChange,
 }: OccupancyCalendarProps): OccupancyCalendarController {
+  const t = useTranslations('Book');
   const [internalMonth, setInternalMonth] = React.useState<Date>(() => startOfMonth(new Date()));
   const month = monthProp ?? internalMonth;
   const setMonth = React.useCallback(
@@ -167,7 +200,7 @@ export function useOccupancyCalendar({
   const [occupancy, setOccupancy] = React.useState<Map<string, DayInfo>>(new Map());
   const [detailsDate, setDetailsDate] = React.useState<Date | null>(null);
 
-  React.useEffect(() => {
+  const loadOccupancy = React.useCallback(() => {
     let cancelled = false;
     const from = toISODate(addMonths(month, -1));
     const to = toISODate(addMonths(month, 3));
@@ -184,6 +217,7 @@ export function useOccupancyCalendar({
               assignments: e.assignments,
               pending: e.pending,
               pendingParticipants: e.pendingParticipants,
+              fullyBooked: e.fullyBooked,
             },
           ]),
         ),
@@ -194,14 +228,28 @@ export function useOccupancyCalendar({
     };
   }, [month]);
 
+  // Refetch when the visible window changes.
+  React.useEffect(() => loadOccupancy(), [loadOccupancy]);
+
+  // Also refetch when a booking changes elsewhere (e.g. a stay cancelled on the
+  // dashboard). The occupancy is client-fetched, so a server-side revalidate
+  // can't reach it — this keeps the calendar in sync with the list.
+  React.useEffect(() => {
+    const onChanged = () => loadOccupancy();
+    window.addEventListener(BOOKINGS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, onChanged);
+  }, [loadOccupancy]);
+
+  // A day is unselectable only when the server says no bookable space remains
+  // (capacity-aware). A room with free beds/slots — or any unlimited room —
+  // keeps the day bookable, so you can still request the available spaces.
   const fullyBookedSet = React.useMemo(() => {
     const out = new Set<string>();
-    const total = rooms.length;
     for (const [iso, info] of occupancy) {
-      if (info.fullCottage || (total > 0 && info.roomIds.length >= total)) out.add(iso);
+      if (info.fullyBooked) out.add(iso);
     }
     return out;
-  }, [occupancy, rooms.length]);
+  }, [occupancy]);
 
   const detailsAssignments = React.useMemo(() => {
     if (!detailsDate) return [];
@@ -231,6 +279,15 @@ export function useOccupancyCalendar({
           selection.onChange({ from: date, to: undefined });
           return;
         }
+        // Reject a range that spans any fully-booked day — the whole cottage is
+        // taken on those dates, so a stay covering them can't be booked.
+        const blocked = fullyBookedDaysInRange(f, date, fullyBookedSet);
+        if (blocked > 0) {
+          toast.warning(t('rangeBlockedTitle'), {
+            description: t('rangeBlockedBody', { count: blocked }),
+          });
+          return;
+        }
         selection.onChange({ from: f, to: date });
         return;
       }
@@ -242,7 +299,7 @@ export function useOccupancyCalendar({
       }
       selection.onChange(date);
     },
-    [selection, fullyBookedSet, fullyBookedAction],
+    [selection, fullyBookedSet, fullyBookedAction, t],
   );
 
   return {
@@ -259,38 +316,156 @@ export function useOccupancyCalendar({
 
 /* ----------------------------- day button ----------------------------- */
 
+/** One row of the day tooltip — a room (or the whole cottage) and who's in it. */
+interface DayTooltipGroup {
+  key: string;
+  label: string;
+  /** Room icon name, or `null` for the whole-cottage row. */
+  icon: string | null;
+  color: string | null;
+  names: string[];
+}
+
+/**
+ * Group a day's assignments by room (plus a whole-cottage row), ordered to
+ * match the on-screen icons, so the hover tooltip can list every room booked
+ * that day and who is staying in each — even when the icons collapse to a
+ * single cottage glyph.
+ */
+function buildDayTooltipGroups(
+  info: DayInfo,
+  rooms: OccupancyCalendarRoom[],
+  locale: string,
+  fullCottageLabel: string,
+): DayTooltipGroup[] {
+  const groups: DayTooltipGroup[] = [];
+
+  const cottageNames = info.assignments.filter((a) => a.fullCottage).map((a) => a.name);
+  if (cottageNames.length > 0) {
+    groups.push({ key: 'cottage', label: fullCottageLabel, icon: null, color: null, names: cottageNames });
+  }
+
+  const byRoom = new Map<string, string[]>();
+  for (const a of info.assignments) {
+    if (a.fullCottage || !a.roomId) continue;
+    const list = byRoom.get(a.roomId) ?? [];
+    list.push(a.name);
+    byRoom.set(a.roomId, list);
+  }
+  for (const r of rooms) {
+    const names = byRoom.get(r.id);
+    if (names?.length) {
+      groups.push({ key: r.id, label: roomLabel(r, locale), icon: r.icon, color: r.color, names });
+    }
+  }
+
+  return groups;
+}
+
 export function CustomDayButton(props: DayButtonProps) {
   const { day, modifiers, children, className, ...buttonProps } = props;
-  const { byDay, rooms, fullyBooked } = React.useContext(OccupancyContext);
+  const { byDay, rooms, fullyBooked, cellWidth } = React.useContext(OccupancyContext);
   const t = useTranslations('Book');
+  const locale = useLocale();
   const iso = toISODate(day.date);
   const info = byDay.get(iso);
   const isToday = Boolean(modifiers?.today);
   const isFullyBooked = fullyBooked.has(iso);
   const occupiedRooms = info ? rooms.filter((r) => info.roomIds.includes(r.id)) : [];
-  const tooltip = info?.participants.length ? info.participants.join(', ') : undefined;
+  const tooltipGroups = info
+    ? buildDayTooltipGroups(info, rooms, locale, t('fullCottage'))
+    : [];
+  // Fold the occupancy into the day's existing screen-reader label (the date),
+  // so the same information the visual tooltip shows is announced too.
+  const baseLabel = (buttonProps as { 'aria-label'?: string })['aria-label'];
+  const ariaLabel =
+    tooltipGroups.length > 0
+      ? [baseLabel, tooltipGroups.map((g) => `${g.label}: ${g.names.join(', ')}`).join('; ')]
+          .filter(Boolean)
+          .join(' — ')
+      : baseLabel;
   const isPending = Boolean(info?.pending);
   const pendingLabel = info?.pendingParticipants.length
     ? `${t('pendingApproval')}: ${info.pendingParticipants.join(', ')}`
     : t('pendingApproval');
 
+  // A whole-cottage booking — or simply more rooms than fit two rows — collapses
+  // to the single whole-cottage glyph; the tooltip still lists every room.
+  const showCottageGlyph = Boolean(info?.fullCottage) || occupiedRooms.length > MAX_DAY_ICONS;
+  const hasMarks = Boolean(info?.fullCottage) || occupiedRooms.length > 0;
+
+  // Size icons to the cell: shrink as columns grow so a full row never overflows.
+  const cols = Math.min(occupiedRooms.length || 1, ICONS_PER_ROW);
+  const iconSize = Math.max(6, Math.min(13, Math.floor((cellWidth - 6 - (cols - 1)) / cols)));
+  const cottageSize = Math.round(cellWidth / 3);
+
   return (
     <button
       {...buttonProps}
-      title={tooltip}
+      aria-label={ariaLabel}
       className={cn(
         className,
-        'relative flex flex-col items-center justify-center gap-0.5',
-        isFullyBooked && 'opacity-60',
+        'group relative flex flex-col items-center justify-center gap-0.5',
+        'cursor-pointer disabled:cursor-default',
+        // Lift the hovered cell so its tooltip overlays neighbouring days.
+        tooltipGroups.length > 0 && 'hover:z-20',
       )}
     >
-      <span className={cn('leading-none', isToday && 'font-semibold')}>{children}</span>
-      {/* Cottage-wide reservation hides per-room icons — tooltip lists names instead. */}
-      {!info?.fullCottage && occupiedRooms.length > 0 && (
-        <span className="flex items-center gap-0.5">
-          {occupiedRooms.map((r) => (
-            <RoomIcon key={r.id} name={r.icon} size={11} color={r.color} />
+      {/* Dim only the date + marks for fully-booked days — NOT the button, or
+          the absolutely-positioned tooltip below would inherit the opacity. */}
+      <span
+        className={cn('leading-none', isToday && 'font-semibold', isFullyBooked && 'opacity-60')}
+      >
+        {children}
+      </span>
+      {/* Custom hover tooltip — styled like the booking summary card — listing
+          every room booked that day and who is staying in each. */}
+      {tooltipGroups.length > 0 && (
+        <span
+          role="tooltip"
+          aria-hidden
+          className="pointer-events-none absolute top-full left-1/2 z-30 mt-2 flex w-max max-w-[15rem] -translate-x-1/2 flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-left opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+        >
+          {tooltipGroups.map((g) => (
+            <span key={g.key} className="flex items-start gap-2">
+              <span className="mt-px shrink-0">
+                {g.icon ? (
+                  <RoomIcon name={g.icon} size={14} color={g.color ?? undefined} />
+                ) : (
+                  <FullCottageShape size={14} />
+                )}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-xs font-semibold leading-tight text-[var(--foreground)]">
+                  {g.label}
+                </span>
+                {g.names.map((n, i) => (
+                  <span
+                    key={`${g.key}-${i}`}
+                    className="text-xs leading-tight text-[var(--muted-foreground)]"
+                  >
+                    {n}
+                  </span>
+                ))}
+              </span>
+            </span>
           ))}
+        </span>
+      )}
+      {hasMarks && (
+        <span className={cn(isFullyBooked && 'opacity-60')}>
+          {showCottageGlyph ? (
+            <FullCottageShape size={cottageSize} />
+          ) : (
+            <span
+              className="grid place-items-center gap-px"
+              style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+            >
+              {occupiedRooms.map((r) => (
+                <RoomIcon key={r.id} name={r.icon} size={iconSize} color={r.color} />
+              ))}
+            </span>
+          )}
         </span>
       )}
       {/* Requested-but-unapproved day: yellow dot, top-right, distinct from the booked treatment. */}

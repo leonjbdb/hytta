@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run scripts/dev.ts",
-    "build": "next build",
+    "build": "bun run scripts/cloudflare.ts build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -14,12 +14,12 @@
     "test:watch": "bun test --watch",
     "test:i18n": "bun test tests/i18n",
     "preview": "bun run scripts/preview.ts",
-    "deploy:do": "wrangler deploy --config workers/booking-do/wrangler.jsonc",
-    "deploy": "bun run deploy:do && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:do": "bun run scripts/cloudflare.ts deploy:do",
+    "deploy": "bun run scripts/cloudflare.ts deploy",
     "cf-typegen": "wrangler types",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply hytta --local",
-    "db:migrate:remote": "wrangler d1 migrations apply hytta --remote",
+    "db:migrate:remote": "bun run scripts/cloudflare.ts db:migrate:remote",
     "demo": "bun run src/db/demo.ts",
     "db:reset": "bun run scripts/db-reset.ts",
     "db:studio": "drizzle-kit studio"
@@ -42,6 +42,7 @@
     "react": "^19.2.5",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.5",
+    "sonner": "2.0.7",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.4.2"
   },

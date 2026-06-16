@@ -2,6 +2,7 @@ import { hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { ThemeProvider } from '@/components/theme-provider';
+import { AppToaster } from '@/components/AppToaster';
 import { ClientI18nProvider } from '@/components/ClientI18nProvider';
 import { QueryProvider } from '@/components/QueryProvider';
 import { routing } from '@/i18n/routing';
@@ -59,7 +60,10 @@ export default async function LocaleLayout({
       timeZone="Europe/Oslo"
     >
       <QueryProvider>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <AppToaster />
+        </ThemeProvider>
       </QueryProvider>
     </ClientI18nProvider>
   );

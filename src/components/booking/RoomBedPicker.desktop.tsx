@@ -15,10 +15,14 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
-import type { AvailabilityTarget, BedOccupancy } from '@/lib/booking/types';
+import type { AvailabilityTarget, BedOccupancy, OccupantRef } from '@/lib/booking/types';
 import { roomLabel } from '@/lib/booking/room-label';
+import { formatStay } from '@/lib/booking/format-stay';
 import { FullCottageShape, RoomIcon } from './RoomIcon';
 import { PendingDot } from './PendingDot';
+import { PersonBadge } from '@/components/PersonBadge';
+import { BookedByMultiple } from './BookedByMultiple';
+import { BookedUsersContext, collectBookedUserIds, useBookedUsers } from './booked-users';
 import { SearchableSelect, type ComboOption } from './SearchableSelect';
 
 export type BookingMode = 'FULL_COTTAGE' | 'ROOMS';
@@ -117,9 +121,21 @@ function fullCottagePendingNames(av: AvailabilityTarget[]): string[] {
 function getRoomInfo(av: AvailabilityTarget[], roomId: string) {
   const t = av.find((a) => a.kind === 'SLOT_ROOM' && a.roomId === roomId);
   if (t?.kind !== 'SLOT_ROOM') {
-    return { capacity: null as number | null, taken: 0, pending: 0, pendingNames: [] as string[] };
+    return {
+      capacity: null as number | null,
+      taken: 0,
+      pending: 0,
+      pendingNames: [] as string[],
+      takenBy: [] as OccupantRef[],
+    };
   }
-  return { capacity: t.capacity, taken: t.taken, pending: t.pending, pendingNames: t.pendingNames };
+  return {
+    capacity: t.capacity,
+    taken: t.taken,
+    pending: t.pending,
+    pendingNames: t.pendingNames,
+    takenBy: t.takenBy,
+  };
 }
 
 function bedSlotCapacity(beds: PickerBed[], roomId: string): number {
@@ -259,6 +275,9 @@ export function RoomBedPicker({
     roomLabel(a, locale).localeCompare(roomLabel(b, locale)),
   );
 
+  // People already booked (CONFIRMED) over these dates can't be added again.
+  const bookedIds = React.useMemo(() => collectBookedUserIds(availability), [availability]);
+
   const fullAvailable = availability.length === 0 || isFullAvailable(availability);
   const fullPending = fullCottagePending(availability);
   const fullPendingNames = fullCottagePendingNames(availability);
@@ -282,7 +301,8 @@ export function RoomBedPicker({
       onChange({
         ...value,
         mode: 'FULL_COTTAGE',
-        fullCottageParticipants: next.length > 0 ? next : [{ kind: 'user', userId: currentUserId }],
+        fullCottageParticipants:
+          next.length > 0 ? next : [defaultPickFor(users, bookedIds, currentUserId)],
       });
     } else {
       // Switching back to ROOMS just changes the active mode — both stores
@@ -365,9 +385,15 @@ export function RoomBedPicker({
     [beds],
   );
 
-  const bedTakenByOthers = React.useCallback(
-    (roomId: string, bedId: string): boolean =>
-      bedOccupancyOf(availability, roomId).some((b) => b.bedId === bedId && b.taken),
+  /** Seats on a bed still available to *you* — its capacity minus the peak
+   *  concurrent seats others already hold. Doubles are shareable, so a double
+   *  with one other occupant still returns 1. */
+  const bedFreeForMe = React.useCallback(
+    (roomId: string, bedId: string): number => {
+      const occ = bedOccupancyOf(availability, roomId).find((b) => b.bedId === bedId);
+      if (!occ) return 0;
+      return Math.max(0, occ.capacity - occ.takenByOthers);
+    },
     [availability],
   );
 
@@ -377,7 +403,7 @@ export function RoomBedPicker({
 
   /** Add a default participant to a specific bed's next free seat. */
   const addToBed = (roomId: string, bedId: string) => {
-    const used = new Set(collectUsedUserIds(value));
+    const used = new Set([...collectUsedUserIds(value), ...bookedIds]);
     const pick: ParticipantPick = { ...defaultPickFor(users, used, currentUserId), bedId };
     setRoomList(roomId, [...(value.rooms[roomId] ?? []), pick]);
   };
@@ -411,9 +437,11 @@ export function RoomBedPicker({
     const sourceList = value.rooms[sourceRoomId];
     const moving = sourceList?.[sourceIndex];
     if (!bed || !moving) return;
-    if (bedTakenByOthers(targetRoomId, targetBedId)) return;
+    // Free seats for me = capacity − others' peak. Doubles are shareable, so a
+    // double with one other occupant still has one seat for me.
+    const free = bedFreeForMe(targetRoomId, targetBedId);
     const skip = sourceRoomId === targetRoomId ? sourceIndex : undefined;
-    if (seatsUsed(value.rooms[targetRoomId] ?? [], targetBedId, skip) >= bedCapacity(bed.kind)) {
+    if (seatsUsed(value.rooms[targetRoomId] ?? [], targetBedId, skip) >= free) {
       return;
     }
 
@@ -452,22 +480,25 @@ export function RoomBedPicker({
       const list = value.rooms[room.id];
       if (!list || list.length === 0) continue;
       const roomBeds = beds.filter((b) => b.roomId === room.id);
-      const takenSet = new Set(
-        bedOccupancyOf(availability, room.id).filter((b) => b.taken).map((b) => b.bedId),
+      const occByBed = new Map(
+        bedOccupancyOf(availability, room.id).map((b) => [b.bedId, b] as const),
       );
+      // Seats on a bed available to me = capacity − others' peak.
+      const freeOf = (b: PickerBed) => {
+        const occ = occByBed.get(b.id);
+        return occ ? Math.max(0, occ.capacity - occ.takenByOthers) : bedCapacity(b.kind);
+      };
       const counts = new Map<string, number>();
       const next = list.map((p) => ({ ...p }));
       for (const p of next) {
-        if (p.bedId && (takenSet.has(p.bedId) || !roomBeds.some((b) => b.id === p.bedId))) {
-          p.bedId = undefined;
-        }
+        const bed = p.bedId ? roomBeds.find((b) => b.id === p.bedId) : undefined;
+        // Drop the bed if it no longer exists, or others now leave no seat for me.
+        if (p.bedId && (!bed || freeOf(bed) === 0)) p.bedId = undefined;
       }
       for (const p of next) if (p.bedId) counts.set(p.bedId, (counts.get(p.bedId) ?? 0) + 1);
       for (const p of next) {
         if (p.bedId) continue;
-        const free = roomBeds.find(
-          (b) => !takenSet.has(b.id) && (counts.get(b.id) ?? 0) < bedCapacity(b.kind),
-        );
+        const free = roomBeds.find((b) => (counts.get(b.id) ?? 0) < freeOf(b));
         if (free) {
           p.bedId = free.id;
           counts.set(free.id, (counts.get(free.id) ?? 0) + 1);
@@ -481,7 +512,9 @@ export function RoomBedPicker({
     if (changed) onChange({ ...value, rooms: newRooms });
   }, [value, rooms, beds, availability, onChange]);
 
-  const usedUserIds = collectUsedUserIds(value);
+  // Treat already-booked people as "used" too, so we never default to adding
+  // someone who can't be booked over these dates.
+  const usedUserIds = new Set([...collectUsedUserIds(value), ...bookedIds]);
 
   // dnd-kit sensors: a small activation distance so a quick click on the
   // grip doesn't accidentally start a drag, but anything past 4 px does.
@@ -518,6 +551,7 @@ export function RoomBedPicker({
       : pick.name || '—';
 
   return (
+    <BookedUsersContext.Provider value={bookedIds}>
     <div className="flex flex-col gap-5">
       <ModeToggle
         value={value.mode}
@@ -585,6 +619,7 @@ export function RoomBedPicker({
                   icon={<RoomIcon name={room.icon} size={14} color={room.color} />}
                   beds={beds.filter((b) => b.roomId === room.id)}
                   occupancy={bedOccupancyOf(availability, room.id)}
+                  othersPeak={getRoomInfo(availability, room.id).taken}
                   picks={value.rooms[room.id] ?? []}
                   users={users}
                   onAddToBed={addToBed}
@@ -618,9 +653,11 @@ export function RoomBedPicker({
                 pendingNames={info.pendingNames}
                 meta={
                   capacity == null
-                    ? t('slotsUsedUnlimited', { count: list.length })
+                    ? t('slotsUsedUnlimited', { count: list.length + taken })
                     : t('slotsUsed', {
-                        used: list.length,
+                        // Count slots others have already booked, not just the
+                        // picks being added now — a reserved room shows e.g. 1/2.
+                        used: list.length + taken,
                         total: capacity,
                       })
                 }
@@ -629,6 +666,25 @@ export function RoomBedPicker({
                 roomId={room.id}
                 acceptsDrops={acceptsDrops}
               >
+                {info.takenBy.length > 0 && (
+                  // Slots already held by others — greyed box (muted bg, no
+                  // opacity so the tooltips stay crisp). One person → badge;
+                  // several distinct people → a "multiple people" label whose
+                  // tooltip lists who and when (e.g. two back-to-back stays).
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 p-2">
+                    {new Set(info.takenBy.map((o) => o.name)).size > 1 ? (
+                      <BookedByMultiple occupants={info.takenBy} />
+                    ) : (
+                      <PersonBadge
+                        name={info.takenBy[0]!.name}
+                        isGuest={info.takenBy[0]!.isGuest}
+                        isAdmin={info.takenBy[0]!.isAdmin}
+                        isManager={info.takenBy[0]!.isManager}
+                        when={formatStay(info.takenBy[0]!, locale)}
+                      />
+                    )}
+                  </div>
+                )}
                 <ParticipantList
                   participants={list}
                   users={users}
@@ -656,6 +712,7 @@ export function RoomBedPicker({
         </DndContext>
       )}
     </div>
+    </BookedUsersContext.Provider>
   );
 }
 
@@ -861,8 +918,11 @@ function ParticipantPicker({
   onChange: (p: ParticipantPick) => void;
 }) {
   const t = useTranslations('Book');
-  const options = buildOptions(users);
   const encoded = encodePick(value);
+  const booked = useBookedUsers();
+  // Drop people already booked over these dates — but never hide the option
+  // that's currently selected here, so the field can still render its value.
+  const options = buildOptions(users).filter((o) => !booked.has(o.id) || o.id === encoded);
 
   return (
     <SearchableSelect
@@ -878,8 +938,11 @@ function ParticipantPicker({
       allowCustom={(query) => {
         const trimmed = query.trim();
         if (!trimmed) return null;
-        // If the typed text matches a registered user's name, prefer that.
-        const match = users.find((u) => u.name.toLowerCase() === trimmed.toLowerCase());
+        // Typed text matching a (bookable) registered user prefers that user;
+        // a name that's already booked falls through to a free-text guest.
+        const match = users.find(
+          (u) => u.name.toLowerCase() === trimmed.toLowerCase() && !booked.has(u.id),
+        );
         if (match) return match.id;
         return `${GUEST_PREFIX}${trimmed}`;
       }}
@@ -989,6 +1052,7 @@ function BedRoomCard({
   icon,
   beds,
   occupancy,
+  othersPeak,
   picks,
   users,
   onAddToBed,
@@ -1000,6 +1064,8 @@ function BedRoomCard({
   icon: React.ReactNode;
   beds: PickerBed[];
   occupancy: BedOccupancy[];
+  /** Peak concurrent people others hold in this room on any single day. */
+  othersPeak: number;
   picks: ParticipantPick[];
   users: PickerUser[];
   onAddToBed: (roomId: string, bedId: string) => void;
@@ -1016,12 +1082,6 @@ function BedRoomCard({
   const totalSeats = beds.reduce((n, b) => n + bedCapacity(b.kind), 0);
   const indexed = picks.map((p, i) => ({ p, i }));
   const assigned = picks.length;
-  const anyFree = orderedBeds.some(
-    (b) =>
-      !takenMap.get(b.id)?.taken &&
-      indexed.filter((x) => x.p.bedId === b.id).length < bedCapacity(b.kind),
-  );
-
   return (
     <div
       className={cn(
@@ -1029,7 +1089,8 @@ function BedRoomCard({
         assigned > 0
           ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/30'
           : 'border-[var(--border)]',
-        !anyFree && assigned === 0 && 'opacity-60',
+        // No card-level `opacity` for a fully-taken room: it would fade the
+        // occupant badges' tooltips. The muted bed boxes already convey "taken".
       )}
     >
       <div className="flex items-center gap-3">
@@ -1039,7 +1100,9 @@ function BedRoomCard({
         <span className="text-sm font-medium">{label}</span>
         <PendingDot names={roomPendingNames} />
         <span className="ml-auto text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
-          {t('slotsUsed', { used: assigned, total: totalSeats })}
+          {/* Peak concurrent people: others' peak + your picks (all span the
+              range). Back-to-back stays don't double-count. */}
+          {t('slotsUsed', { used: assigned + othersPeak, total: totalSeats })}
         </span>
       </div>
       <p className="text-xs text-[var(--muted-foreground)]">{t('roomBedsHint')}</p>
@@ -1049,7 +1112,9 @@ function BedRoomCard({
             key={bed.id}
             roomId={roomId}
             bed={bed}
-            taken={Boolean(takenMap.get(bed.id)?.taken)}
+            capacity={takenMap.get(bed.id)?.capacity ?? bedCapacity(bed.kind)}
+            takenByOthers={takenMap.get(bed.id)?.takenByOthers ?? 0}
+            takenBy={takenMap.get(bed.id)?.takenBy ?? []}
             pendingNames={takenMap.get(bed.id)?.pendingNames ?? []}
             occupants={indexed.filter((x) => x.p.bedId === bed.id)}
             users={users}
@@ -1066,7 +1131,9 @@ function BedRoomCard({
 function BedBox({
   roomId,
   bed,
-  taken,
+  capacity,
+  takenByOthers,
+  takenBy,
   pendingNames,
   occupants,
   users,
@@ -1076,7 +1143,9 @@ function BedBox({
 }: {
   roomId: string;
   bed: PickerBed;
-  taken: boolean;
+  capacity: number;
+  takenByOthers: number;
+  takenBy: OccupantRef[];
   pendingNames: string[];
   occupants: { p: ParticipantPick; i: number }[];
   users: PickerUser[];
@@ -1085,22 +1154,47 @@ function BedBox({
   onRemove: (index: number) => void;
 }) {
   const t = useTranslations('Book');
-  const cap = bedCapacity(bed.kind);
-  const full = occupants.length >= cap;
+  const locale = useLocale();
+  // Seats free for me = capacity − others' peak. Doubles are shareable, so a
+  // double with one other occupant still leaves a seat I can add to.
+  const freeForMe = Math.max(0, capacity - takenByOthers);
+  const hasOthers = takenBy.length > 0;
+  const canAdd = occupants.length < freeForMe;
   const { setNodeRef, isOver } = useDroppable({
     id: `bed-${bed.id}`,
     data: { roomId, bedId: bed.id },
-    disabled: taken || full,
+    disabled: freeForMe === 0,
   });
   const bedName = bed.kind === 'DOUBLE' ? t('bedDouble') : t('bedSingle');
-  // An empty bed is one big clickable "add" target (the whole box).
-  const empty = !taken && occupants.length === 0;
+  // Wholly empty (no others, no picks of mine, a seat free) → one big add target.
+  const empty = !hasOthers && occupants.length === 0 && freeForMe > 0;
+  // Held entirely by others (no seat for me) → just their badge(s), greyed.
+  const onlyOthers = hasOthers && occupants.length === 0 && freeForMe === 0;
+
+  const othersBadge = (
+    // Muted sub-row naming who holds the bed. One holder → badge (+ when on
+    // hover). Several distinct people across the range → a "multiple people"
+    // label whose tooltip lists who and when. No `opacity` so tooltips stay crisp.
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--muted)]/50 px-1.5 py-1">
+      {new Set(takenBy.map((o) => o.name)).size > 1 ? (
+        <BookedByMultiple occupants={takenBy} />
+      ) : (
+        <PersonBadge
+          name={takenBy[0]!.name}
+          isGuest={takenBy[0]!.isGuest}
+          isAdmin={takenBy[0]!.isAdmin}
+          isManager={takenBy[0]!.isManager}
+          when={formatStay(takenBy[0]!, locale)}
+        />
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-[var(--muted-foreground)]">{bedName}</span>
-        {!taken && <PendingDot names={pendingNames} />}
+        <PendingDot names={pendingNames} />
       </div>
       {empty ? (
         <button
@@ -1123,40 +1217,33 @@ function BedBox({
           ref={setNodeRef}
           className={cn(
             'flex flex-col gap-2 rounded-lg border p-2 transition-colors',
-            taken
-              ? 'border-[var(--border)] bg-[var(--muted)]/40 opacity-70'
+            onlyOthers
+              ? 'border-[var(--border)] bg-[var(--muted)]/40'
               : isOver
                 ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/50'
                 : 'border-[var(--border)]',
           )}
         >
-          {taken ? (
-            <div className="px-2 py-2 text-center text-xs text-[var(--muted-foreground)]">
-              {t('bedTaken')}
-            </div>
-          ) : (
-            <>
-              {occupants.map(({ p, i }) => (
-                <BedSeat
-                  key={i}
-                  roomId={roomId}
-                  index={i}
-                  pick={p}
-                  users={users}
-                  onChange={(np) => onUpdate(i, np)}
-                  onRemove={() => onRemove(i)}
-                />
-              ))}
-              {occupants.length < cap && (
-                <button
-                  type="button"
-                  onClick={onAdd}
-                  className="self-start rounded-md border border-dashed border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
-                >
-                  <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
-                </button>
-              )}
-            </>
+          {hasOthers && othersBadge}
+          {occupants.map(({ p, i }) => (
+            <BedSeat
+              key={i}
+              roomId={roomId}
+              index={i}
+              pick={p}
+              users={users}
+              onChange={(np) => onUpdate(i, np)}
+              onRemove={() => onRemove(i)}
+            />
+          ))}
+          {canAdd && (
+            <button
+              type="button"
+              onClick={onAdd}
+              className="self-start rounded-md border border-dashed border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+            >
+              <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
+            </button>
           )}
         </div>
       )}

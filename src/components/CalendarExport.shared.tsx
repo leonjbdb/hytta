@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Check, Download, Link2, User, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ensureCalendarToken } from '@/server/actions/calendar';
 
@@ -22,7 +23,6 @@ export function CalendarExportPanel({ enabled = true }: PanelProps) {
   const t = useTranslations('CalendarExport');
   const locale = useLocale();
   const [token, setToken] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState<CalendarScope | null>(null);
 
   React.useEffect(() => {
@@ -32,7 +32,7 @@ export function CalendarExportPanel({ enabled = true }: PanelProps) {
       const r = await ensureCalendarToken();
       if (cancelled) return;
       if (!r.ok) {
-        setError(r.message);
+        toast.error(r.message);
         return;
       }
       setToken(r.token);
@@ -51,13 +51,12 @@ export function CalendarExportPanel({ enabled = true }: PanelProps) {
   };
 
   const onCopy = async (scope: CalendarScope) => {
-    setError(null);
     try {
       await navigator.clipboard.writeText(buildUrl(scope, false));
       setCopied(scope);
       window.setTimeout(() => setCopied((s) => (s === scope ? null : s)), 1800);
     } catch {
-      setError(t('copyFailed'));
+      toast.error(t('copyFailed'));
     }
   };
 
@@ -96,12 +95,6 @@ export function CalendarExportPanel({ enabled = true }: PanelProps) {
         copyLabel={copied === 'all' ? t('copied') : t('copyUrl')}
         copyDone={copied === 'all'}
       />
-
-      {error && (
-        <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

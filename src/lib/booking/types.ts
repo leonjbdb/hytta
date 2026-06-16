@@ -57,16 +57,38 @@ export interface BedDTO {
   label: string;
 }
 
+/** A person occupying a target, with enough detail to render a PersonBadge and
+ *  a "who and when" tooltip. */
+export interface OccupantRef {
+  /** The occupant's user id, or null for a guest. Lets the booking form hide
+   *  people already booked over the range (they can't be added again). */
+  userId: string | null;
+  name: string;
+  isGuest: boolean;
+  isAdmin: boolean;
+  isManager: boolean;
+  /** The occupant's reservation range (ISO `YYYY-MM-DD`) — the "when". */
+  startDate: string;
+  endDate: string;
+}
+
 /**
- * Per-bed occupancy for BEDS-mode rooms. A bed is reserved *whole* — a double
- * claimed by one person can't be back-filled by anyone else — so `taken` is a
- * boolean, not a seat count.
+ * Per-bed occupancy for BEDS-mode rooms. A bed is a small capacity unit: a
+ * double sleeps two, a single one, and the seats can be shared across separate
+ * bookings (it's a cottage for family + friends). `takenByOthers` is the PEAK
+ * concurrent seats others hold on any single day in the range — so two
+ * back-to-back stays don't both fill it, and a double with one occupant still
+ * has a spare seat. A whole-room / whole-cottage hold fills every seat.
  */
 export interface BedOccupancy {
   bedId: string;
-  /** A CONFIRMED reservation occupies this bed (the bed itself, its room, or
-   *  the whole cottage). When true the bed can't be picked. */
-  taken: boolean;
+  /** Seat capacity: a double sleeps two, a single one. */
+  capacity: number;
+  /** Peak concurrent seats held by OTHERS across the range. The bed is still
+   *  bookable while `takenByOthers < capacity`. */
+  takenByOthers: number;
+  /** Who holds this bed (CONFIRMED). Drives the occupant badge(s). */
+  takenBy: OccupantRef[];
   /** PENDING requests touching this bed — shown distinctly, do **not** block. */
   pending: number;
   /** Display names behind those pending requests (bed- and room-level). */
@@ -93,6 +115,10 @@ export type AvailabilityTarget =
       capacity: number | null; // null = unlimited
       /** Slots already CONFIRMED — reduce remaining capacity. */
       taken: number;
+      /** Who holds the CONFIRMED slots (SLOTS-mode rooms). Drives the person
+       *  badges shown for occupants you can't edit. Empty for BEDS-mode rooms,
+       *  whose occupants are surfaced per bed via `beds[].takenBy`. */
+      takenBy: OccupantRef[];
       /** Slots requested but PENDING — shown distinctly, do **not** block. */
       pending: number;
       /** Display names behind pending requests touching this room (room- or

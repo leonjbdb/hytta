@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Loader2, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,15 +17,13 @@ export function Groups({ groups }: { groups: GroupSummary[] }) {
   const router = useRouter();
   const [name, setName] = React.useState('');
   const [pending, startTransition] = React.useTransition();
-  const [error, setError] = React.useState<string | null>(null);
 
   const submit = () => {
     if (!name.trim()) return;
-    setError(null);
     startTransition(async () => {
       const r = await createGroup({ name });
       if (!r.ok) {
-        setError(r.message);
+        toast.error(r.message);
         return;
       }
       router.push(`/groups/${r.data.id}`);
@@ -88,7 +87,6 @@ export function Groups({ groups }: { groups: GroupSummary[] }) {
                 <Plus className="size-4" />
                 {t('createGroup')}
               </Button>
-              {error && <span className="text-xs text-[var(--destructive)]">{error}</span>}
             </div>
           </CardContent>
         </Card>

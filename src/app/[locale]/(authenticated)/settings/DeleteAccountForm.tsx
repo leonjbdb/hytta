@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Loader2, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,6 @@ export function DeleteAccountForm() {
   const t = useTranslations('Settings');
   const confirm = useConfirm();
   const [pending, startTransition] = React.useTransition();
-  const [error, setError] = React.useState<string | null>(null);
 
   return (
     <Card className="border-[var(--destructive)]/40">
@@ -41,17 +41,15 @@ export function DeleteAccountForm() {
               delaySeconds: 3,
             });
             if (!ok) return;
-            setError(null);
             startTransition(async () => {
               const r = await deleteOwnAccount();
-              if (!r.ok) setError(r.message);
+              if (!r.ok) toast.error(r.message);
             });
           }}
         >
           {pending ? <Loader2 className="size-4 animate-spin" /> : <UserX className="size-4" />}
           {t('deleteAccountCta')}
         </Button>
-        {error && <span className="text-xs text-[var(--destructive)]">{error}</span>}
       </CardContent>
     </Card>
   );

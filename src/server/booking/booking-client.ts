@@ -43,7 +43,7 @@ export const bookingWrites = {
     raw: unknown,
     opts?: { allowAnyBooker?: boolean },
   ) => unwrap(stub().updateBooking(actorId, bookingId, raw, opts)),
-  cancel: (actorId: string, reservationId: string, opts?: { allowManager?: boolean }) =>
+  cancel: (actorId: string, reservationId: string, opts?: { allowElevated?: boolean }) =>
     unwrap(stub().cancel(actorId, reservationId, opts)),
   cancelBooking: (
     actorId: string,

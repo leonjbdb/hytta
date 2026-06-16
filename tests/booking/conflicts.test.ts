@@ -86,19 +86,62 @@ describe('Conflict cases (closed interval)', () => {
     ).rejects.toThrow(ConflictError);
   });
 
-  it('C4 — same BED overlapping conflicts', async () => {
+  it('C4 — same SINGLE bed overlapping conflicts (capacity 1)', async () => {
+    await h.service.create(ids.userId, {
+      kind: 'BED',
+      bedId: ids.beds.RED_SINGLE_1,
+      ...range(40, 42),
+    });
+    await expect(
+      h.service.create(ids.otherUserId, {
+        kind: 'BED',
+        bedId: ids.beds.RED_SINGLE_1,
+        ...range(41, 43),
+      }),
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('C4 — a DOUBLE bed is shareable by two people at once (capacity 2)', async () => {
     await h.service.create(ids.userId, {
       kind: 'BED',
       bedId: ids.beds.RED_DOUBLE,
       ...range(40, 42),
     });
     await expect(
-      h.service.create(ids.userId, {
+      h.service.create(ids.otherUserId, {
         kind: 'BED',
         bedId: ids.beds.RED_DOUBLE,
         ...range(41, 43),
       }),
+    ).resolves.toMatchObject({ targetKind: 'BED' });
+  });
+
+  it('C4 — a DOUBLE bed is full once two people overlap (a third is blocked)', async () => {
+    await h.service.create(ids.userId, { kind: 'BED', bedId: ids.beds.RED_DOUBLE, ...range(40, 44) });
+    await h.service.create(ids.otherUserId, { kind: 'BED', bedId: ids.beds.RED_DOUBLE, ...range(40, 44) });
+    // A guest (booked by an existing user) can't take the now-full double.
+    await expect(
+      h.service.createBooking(ids.userId, {
+        ...range(41, 43),
+        participants: [{ targetKind: 'BED', bedId: ids.beds.RED_DOUBLE, guestName: 'Cousin' }],
+      }),
     ).rejects.toThrow(ConflictError);
+  });
+
+  it('C4 — a bed freed before the new stay can be rebooked (peak, not overlap count)', async () => {
+    // user is in the single 40–42; otherUser arrives 43–45 — never concurrent.
+    await h.service.create(ids.userId, {
+      kind: 'BED',
+      bedId: ids.beds.RED_SINGLE_1,
+      ...range(40, 42),
+    });
+    await expect(
+      h.service.create(ids.otherUserId, {
+        kind: 'BED',
+        bedId: ids.beds.RED_SINGLE_1,
+        ...range(43, 45),
+      }),
+    ).resolves.toMatchObject({ targetKind: 'BED' });
   });
 
   it('C4 — different BEDs in RED do not conflict (different participants)', async () => {

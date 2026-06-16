@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,9 +22,7 @@ export function CottageNameForm({ initialName }: { initialName: string }) {
   const router = useRouter();
   const [name, setName] = React.useState(initialName);
   const [pending, startTransition] = React.useTransition();
-  const [status, setStatus] = React.useState<{ kind: 'ok' | 'error'; msg: string } | null>(
-    null,
-  );
+  const [status, setStatus] = React.useState<{ kind: 'ok'; msg: string } | null>(null);
 
   return (
     <Card>
@@ -42,7 +41,7 @@ export function CottageNameForm({ initialName }: { initialName: string }) {
                 // Pull the new brand into the header (and the rest of the tree).
                 router.refresh();
               } else {
-                setStatus({ kind: 'error', msg: r.message });
+                toast.error(r.message);
               }
             });
           }}
@@ -63,17 +62,7 @@ export function CottageNameForm({ initialName }: { initialName: string }) {
               {pending && <Loader2 className="size-4 animate-spin" />}
               {t('saveCottageName')}
             </Button>
-            {status && (
-              <span
-                className={
-                  status.kind === 'ok'
-                    ? 'text-xs text-[var(--color-moss-700)]'
-                    : 'text-xs text-[var(--destructive)]'
-                }
-              >
-                {status.msg}
-              </span>
-            )}
+            {status && <span className="text-xs text-[var(--color-moss-700)]">{status.msg}</span>}
           </div>
         </form>
       </CardContent>

@@ -16,6 +16,10 @@
  * `onConflictDoNothing`, so re-running adds nothing. To start over, run
  * `bun run db:reset` first.
  *
+ * Guarded: the loader refuses production/CI-like environments and explicitly
+ * disables Wrangler remote bindings, so it can only write to the local
+ * Miniflare D1 store.
+ *
  * Inserts:
  *   - cottage name "Granheim" (so the /setup gate is already satisfied)
  *   - 4 demo members, all sharing the same password (printed at the end)
@@ -24,7 +28,7 @@
  *   - a few dugnad (chores), one completed by someone other than its creator
  *   - one group template
  */
-import { getPlatformProxy } from 'wrangler';
+import { getPlatformProxy, type GetPlatformProxyOptions } from 'wrangler';
 import { drizzleFor, type DB } from './client';
 import {
   beds,
@@ -39,6 +43,28 @@ import {
 import { hashPassword } from '@/lib/auth/password';
 
 const COTTAGE_NAME = 'Granheim';
+
+const LOCAL_PLATFORM_PROXY_OPTIONS = {
+  remoteBindings: false,
+} satisfies GetPlatformProxyOptions;
+
+const BLOCKED_ENV_VARS = ['CF_PAGES', 'CLOUDFLARE_ENV'] as const;
+
+function assertLocalDemoRun(): void {
+  const blocked: string[] = BLOCKED_ENV_VARS.filter((name) =>
+    Boolean(process.env[name]),
+  );
+  if (process.env.CI && process.env.CI !== 'false') blocked.push('CI');
+  if (process.env.NODE_ENV === 'production') blocked.push('NODE_ENV=production');
+
+  if (blocked.length > 0) {
+    throw new Error(
+      'Refusing to load demo data outside local development. ' +
+        `Blocked by: ${blocked.join(', ')}. ` +
+        'Use the production /setup flow instead.',
+    );
+  }
+}
 
 /** Shared login for every demo account. Printed at the end of the run. */
 const DEMO_PASSWORD = 'demohytta2026';
@@ -326,7 +352,8 @@ async function loadGroup(db: DB): Promise<void> {
 }
 
 async function main() {
-  const platform = await getPlatformProxy<CloudflareEnv>();
+  assertLocalDemoRun();
+  const platform = await getPlatformProxy<CloudflareEnv>(LOCAL_PLATFORM_PROXY_OPTIONS);
   const db = drizzleFor(platform.env.DB);
   try {
     console.log('[demo] cottage…');

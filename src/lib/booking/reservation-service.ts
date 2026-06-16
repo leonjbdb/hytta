@@ -339,7 +339,7 @@ export class ReservationService {
   async cancel(
     actorId: string,
     reservationId: string,
-    opts?: { allowManager?: boolean },
+    opts?: { allowElevated?: boolean },
   ): Promise<void> {
     const existing = await this.db
       .select()
@@ -350,9 +350,9 @@ export class ReservationService {
     if (!row) throw new NotFoundError('Reservation');
     const isParticipant = row.userId !== null && row.userId === actorId;
     const isBooker = row.bookerId === actorId;
-    // The participant or the booker may always cancel; managers may cancel
-    // anyone's stay.
-    if (!isParticipant && !isBooker && !opts?.allowManager) throw new ForbiddenError();
+    // The participant or the booker may always cancel their own stay; admins
+    // and managers may cancel anyone's.
+    if (!isParticipant && !isBooker && !opts?.allowElevated) throw new ForbiddenError();
     if (row.status === 'CANCELLED') return;
 
     await this.db
@@ -391,6 +391,30 @@ export class ReservationService {
         ),
       )
       .run();
+  }
+
+  /**
+   * True while any ACTIVE (non-cancelled) reservation references this room —
+   * directly (ROOM/SLOT target) or via one of its beds (BED target). Cancelling
+   * a booking keeps its row with status CANCELLED, so those are ignored: a room
+   * whose bookings were all cancelled is deletable. Used by the admin
+   * room-delete guard.
+   */
+  async roomHasActiveReservations(roomId: string): Promise<boolean> {
+    const bedIds = (
+      await this.db.select({ id: beds.id }).from(beds).where(eq(beds.roomId, roomId)).all()
+    ).map((b) => b.id);
+    const targetsRoom =
+      bedIds.length > 0
+        ? or(eq(reservations.roomId, roomId), inArray(reservations.bedId, bedIds))
+        : eq(reservations.roomId, roomId);
+    const active = await this.db
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(and(ne(reservations.status, 'CANCELLED'), targetsRoom))
+      .limit(1)
+      .all();
+    return active.length > 0;
   }
 
   /**

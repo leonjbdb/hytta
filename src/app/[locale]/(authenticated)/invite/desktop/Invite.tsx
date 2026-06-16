@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Loader2, Copy, Check, Trash2, Mail, Link as LinkIcon } from 'lucide-react';
 
 const EXPIRES_FORMAT = {
@@ -25,7 +26,6 @@ const DURATION_OPTIONS = [24, 48, 72, 96, 120, 144, 168];
 export function Invite({ origin, invites }: InviteProps) {
   const t = useTranslations('Invite');
   const [list, setList] = React.useState<InviteListItem[]>(invites);
-  const [error, setError] = React.useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-8">
@@ -34,14 +34,8 @@ export function Invite({ origin, invites }: InviteProps) {
         <p className="text-sm text-[var(--muted-foreground)]">{t('subtitle')}</p>
       </header>
 
-      <CreateForm origin={origin} onCreated={(i) => setList((cur) => [i, ...cur])} onError={setError} />
-      <ListSection invites={list} origin={origin} setList={setList} setError={setError} />
-
-      {error && (
-        <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
-          {error}
-        </p>
-      )}
+      <CreateForm origin={origin} onCreated={(i) => setList((cur) => [i, ...cur])} />
+      <ListSection invites={list} origin={origin} setList={setList} />
     </div>
   );
 }
@@ -49,11 +43,9 @@ export function Invite({ origin, invites }: InviteProps) {
 function CreateForm({
   origin,
   onCreated,
-  onError,
 }: {
   origin: string;
   onCreated: (i: InviteListItem) => void;
-  onError: (msg: string | null) => void;
 }) {
   const t = useTranslations('Invite');
   const [mode, setMode] = React.useState<'link' | 'email'>('link');
@@ -68,13 +60,12 @@ function CreateForm({
   const fmt = useFormatter();
 
   const submit = () => {
-    onError(null);
     setLastUrl(null);
     setSentTo(null);
     setCopied(false);
     const trimmedEmail = email.trim();
     if (mode === 'email' && !trimmedEmail) {
-      onError(t('errorEmailRequired'));
+      toast.error(t('errorEmailRequired'));
       return;
     }
     startTransition(async () => {
@@ -84,7 +75,7 @@ function CreateForm({
         email: mode === 'email' ? trimmedEmail : null,
       });
       if (!r.ok) {
-        onError(r.message);
+        toast.error(r.message);
         return;
       }
       const url = `${origin}/invite/${r.invitation.token}`;
@@ -260,12 +251,10 @@ function ListSection({
   invites,
   origin,
   setList,
-  setError,
 }: {
   invites: InviteListItem[];
   origin: string;
   setList: React.Dispatch<React.SetStateAction<InviteListItem[]>>;
-  setError: (msg: string | null) => void;
 }) {
   const t = useTranslations('Invite');
   const confirm = useConfirm();
@@ -285,13 +274,12 @@ function ListSection({
 
   const revoke = async (id: string) => {
     if (!(await confirm({ message: t('confirmRevoke'), confirmLabel: t('revoke'), destructive: true }))) return;
-    setError(null);
     setPendingId(id);
     (async () => {
       const r = await revokeInvite(id);
       setPendingId(null);
       if (!r.ok) {
-        setError(r.message);
+        toast.error(r.message);
         return;
       }
       setList((cur) =>

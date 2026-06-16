@@ -350,7 +350,11 @@ function BookingGroupCard({
               {t('edit')}
             </Link>
           )}
-          {allowCancel && canDelete && g.rows.length > 1 && (
+          {/* Whole-booking cancel: for multi-person bookings, and for any
+              booking an admin/manager is acting on (i.e. not their own), so
+              elevated users can always remove the entire stay — even a
+              one-person one — not just a single row. */}
+          {allowCancel && canDelete && (g.rows.length > 1 || !isViewerBooker) && (
             <CancelBookingButton bookingId={g.bookingId} />
           )}
         </div>

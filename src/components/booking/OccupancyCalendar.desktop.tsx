@@ -35,7 +35,8 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
   const { month, setMonth, occupancy, fullyBookedSet, detailsDate, detailsAssignments } = ctrl;
 
   const occupancyContext = React.useMemo(
-    () => ({ byDay: occupancy, rooms, fullyBooked: fullyBookedSet }),
+    // cellWidth 48 ≙ the `w-12` day cell below; sizes the room icons.
+    () => ({ byDay: occupancy, rooms, fullyBooked: fullyBookedSet, cellWidth: 48 }),
     [occupancy, rooms, fullyBookedSet],
   );
 
@@ -112,14 +113,16 @@ const DESKTOP_CLASSNAMES = {
   day: 'h-12 w-12 p-0 text-center text-sm align-middle relative',
   day_button:
     'inline-flex h-12 w-12 items-center justify-center rounded-md transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+  // Selected/range days keep their green on hover, just a shade darker (the
+  // default muted-bg hover would wipe the green out).
   selected:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)]',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)]',
   range_start:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:rounded-l-md [&_button]:rounded-r-none',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-l-md [&_button]:rounded-r-none',
   range_end:
-    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:rounded-r-md [&_button]:rounded-l-none',
+    '[&_button]:bg-[var(--primary)] [&_button]:text-[var(--primary-foreground)] [&_button]:hover:bg-[color-mix(in_oklch,var(--primary),black_20%)] [&_button]:rounded-r-md [&_button]:rounded-l-none',
   range_middle:
-    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:rounded-none',
+    '[&_button]:bg-[color-mix(in_oklch,var(--primary),transparent_60%)] [&_button]:text-[var(--foreground)] [&_button]:hover:bg-[color-mix(in_oklch,color-mix(in_oklch,var(--primary),transparent_60%),black_20%)] [&_button]:rounded-none',
   today: 'hytta-today',
   disabled: 'opacity-30',
   outside: 'opacity-0',

@@ -6,13 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   // Same D1 as the app worker — both bind the same database, so the DO's writes
-  // and the app's reads hit one database. Use the SAME database_id you put in
-  // the root wrangler.jsonc.
+  // and the app's reads hit one database. Remote scripts inject database_id
+  // from HYTTA_D1_DATABASE_ID into ignored wrangler.local.jsonc files.
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "hytta",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_name": "hytta"
     }
   ],
   "durable_objects": {

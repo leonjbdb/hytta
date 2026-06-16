@@ -170,10 +170,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
           .all())[0];
 
         if (!row) {
-          token.isAdmin = false;
-          token.isManager = false;
-          token.isInvitee = false;
-          return token;
+          // The signed-in user no longer exists — e.g. the account was deleted,
+          // or the database was reseeded while a session stayed live. Invalidate
+          // the session (return null) so the next request bounces to /login,
+          // rather than leaving a "ghost" whose id fails every foreign-key-bound
+          // write (creating a booking inserts `bookerId` → user.id and would
+          // otherwise blow up with an opaque "Something went wrong").
+          return null;
         }
 
         // Auto-promote any user whose email is in ADMIN_EMAILS so first-time

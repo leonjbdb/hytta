@@ -20,6 +20,7 @@ export function PersonBadge({
   highlight,
   isAdmin = false,
   isManager = false,
+  when,
 }: {
   name: string;
   isGuest: boolean;
@@ -27,6 +28,9 @@ export function PersonBadge({
   /** Member roles shown in the tooltip. Invitee is deliberately never shown. */
   isAdmin?: boolean;
   isManager?: boolean;
+  /** Optional second tooltip line — e.g. a stay's date range ("when"). Shown in
+   *  addition to the role, not instead of it. */
+  when?: string;
 }) {
   const t = useTranslations('Common');
   // Guests are always "Guest". Members show their elevated roles (Admin and/or
@@ -43,7 +47,7 @@ export function PersonBadge({
     <Badge
       role="button"
       tabIndex={0}
-      aria-label={`${name} — ${role}`}
+      aria-label={`${name} — ${role}${when ? `, ${when}` : ''}`}
       onClick={() => setOpen((v) => !v)}
       onBlur={() => setOpen(false)}
       onKeyDown={(e) => {
@@ -74,7 +78,8 @@ export function PersonBadge({
           tooltipVis
         }
       >
-        {role}
+        <span className="block">{role}</span>
+        {when && <span className="block text-[var(--muted-foreground)]">{when}</span>}
       </span>
     </Badge>
   );

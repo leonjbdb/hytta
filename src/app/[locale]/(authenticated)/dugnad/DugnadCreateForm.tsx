@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { createDugnadAction } from '@/server/actions/dugnad';
 
@@ -12,7 +13,6 @@ export function DugnadCreateForm() {
   const router = useRouter();
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
-  const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
   const onSubmit = (e: React.FormEvent) => {
@@ -22,10 +22,9 @@ export function DugnadCreateForm() {
     startTransition(async () => {
       const res = await createDugnadAction({ title, description });
       if (!res.ok) {
-        setError(res.message || t('errorGeneric'));
+        toast.error(res.message || t('errorGeneric'));
         return;
       }
-      setError(null);
       setTitle('');
       setDescription('');
       router.refresh();
@@ -67,11 +66,6 @@ export function DugnadCreateForm() {
           className="resize-y rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
         />
       </div>
-      {error && (
-        <p className="text-xs text-[var(--destructive)]" role="alert">
-          {error}
-        </p>
-      )}
       <div className="flex justify-end">
         <Button type="submit" disabled={pending} size="sm">
           <Plus className="size-4" />

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import {
   Card,
   CardContent,
@@ -19,7 +20,6 @@ import { credentialsLogin } from '@/server/actions/auth';
 export function Credentials() {
   const t = useTranslations('Auth');
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -33,11 +33,10 @@ export function Credentials() {
           <form
             className="flex flex-col gap-3"
             action={(fd) => {
-              setError(null);
               startTransition(async () => {
                 const r = await credentialsLogin(fd);
                 if (!r.ok) {
-                  setError(r.message);
+                  toast.error(r.message);
                   return;
                 }
                 router.push('/dashboard');
@@ -65,11 +64,6 @@ export function Credentials() {
                 required
               />
             </div>
-            {error && (
-              <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 px-2.5 py-1.5 text-xs text-[var(--destructive)]">
-                {error}
-              </p>
-            )}
             <Button type="submit" size="lg" disabled={isPending} className="mt-1">
               {t('credentialsCta')}
             </Button>

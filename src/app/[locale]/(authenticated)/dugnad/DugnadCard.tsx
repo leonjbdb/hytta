@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { CheckCircle2, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PersonBadge } from '@/components/PersonBadge';
@@ -30,7 +31,6 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
   const isOwner = row.createdBy === viewerId;
@@ -51,7 +51,7 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
     if (pending) return;
     startTransition(async () => {
       const res = await completeDugnadAction(row.id);
-      if (!res.ok) setError(res.message || t('errorGeneric'));
+      if (!res.ok) toast.error(res.message || t('errorGeneric'));
       else router.refresh();
     });
   };
@@ -60,7 +60,7 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
     if (pending) return;
     startTransition(async () => {
       const res = await uncompleteDugnadAction(row.id);
-      if (!res.ok) setError(res.message || t('errorGeneric'));
+      if (!res.ok) toast.error(res.message || t('errorGeneric'));
       else router.refresh();
     });
   };
@@ -77,7 +77,7 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
       return;
     startTransition(async () => {
       const res = await deleteDugnadAction(row.id);
-      if (!res.ok) setError(res.message || t('errorGeneric'));
+      if (!res.ok) toast.error(res.message || t('errorGeneric'));
       else router.refresh();
     });
   };
@@ -92,11 +92,9 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
         row={row}
         onCancel={() => {
           setEditing(false);
-          setError(null);
         }}
         onSaved={() => {
           setEditing(false);
-          setError(null);
           router.refresh();
         }}
       />
@@ -139,11 +137,6 @@ export function DugnadCard({ row, viewerId, isAdmin, inlineActions = true }: Pro
         )}
       </div>
       <p className="whitespace-pre-wrap break-words text-sm">{row.description}</p>
-      {error && (
-        <p className="text-xs text-[var(--destructive)]" role="alert">
-          {error}
-        </p>
-      )}
       <div className={buttonsClass}>
         {!isCompleted && (
           <Button
@@ -218,7 +211,6 @@ function EditForm({
   const t = useTranslations('Dugnad');
   const [title, setTitle] = React.useState(row.title);
   const [description, setDescription] = React.useState(row.description);
-  const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
   const onSubmit = (e: React.FormEvent) => {
@@ -226,7 +218,7 @@ function EditForm({
     if (pending) return;
     startTransition(async () => {
       const res = await updateDugnadAction(row.id, { title, description });
-      if (!res.ok) setError(res.message || t('errorGeneric'));
+      if (!res.ok) toast.error(res.message || t('errorGeneric'));
       else onSaved();
     });
   };
@@ -250,11 +242,6 @@ function EditForm({
           required
           className="resize-y rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
         />
-        {error && (
-          <p className="text-xs text-[var(--destructive)]" role="alert">
-            {error}
-          </p>
-        )}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
             {t('cancelEdit')}

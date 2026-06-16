@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -31,17 +32,14 @@ export function SetupForm() {
   const [firstName, setFirstName] = React.useState('');
   const [lastName, setLastName] = React.useState('');
   const [pending, startTransition] = React.useTransition();
-  const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ emailed: boolean } | null>(null);
 
   function goNext() {
     if (!name.trim()) return;
-    setError(null);
     setStep(2);
   }
 
   function submit() {
-    setError(null);
     startTransition(async () => {
       const fd = new FormData();
       fd.set('name', name);
@@ -54,7 +52,7 @@ export function SetupForm() {
         // link we just emailed, so show a "check your email" confirmation.
         setDone({ emailed: r.emailed ?? false });
       } else {
-        setError(r.message);
+        toast.error(r.message);
       }
     });
   }

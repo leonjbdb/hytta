@@ -69,7 +69,7 @@ export class BookingDO extends DurableObject<CloudflareEnv> {
   cancel(
     actorId: string,
     reservationId: string,
-    opts?: { allowManager?: boolean },
+    opts?: { allowElevated?: boolean },
   ): Promise<DOResult<void>> {
     return this.serialize(() => this.svc.cancel(actorId, reservationId, opts));
   }

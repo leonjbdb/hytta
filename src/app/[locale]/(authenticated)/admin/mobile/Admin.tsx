@@ -271,12 +271,16 @@ function UsersSection({
   const [query, setQuery] = React.useState('');
 
   const q = query.trim().toLowerCase();
-  const filtered = q
+  const matched = q
     ? users.filter(
         (u) =>
           (u.name ?? '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
       )
     : users;
+  // Pin yourself to the top; everyone else keeps their original order (stable sort).
+  const filtered = [...matched].sort((a, b) =>
+    a.id === viewerId ? -1 : b.id === viewerId ? 1 : 0,
+  );
 
   const run = (u: AdminUser, role: UserRole, fn: () => Promise<AdminResult>) => {
     setError(null);
@@ -342,6 +346,7 @@ function UsersSection({
                   <PersonBadge
                     name={u.name ?? u.email}
                     isGuest={false}
+                    highlight={u.id === viewerId}
                     isAdmin={u.isAdmin}
                     isManager={u.isManager}
                   />

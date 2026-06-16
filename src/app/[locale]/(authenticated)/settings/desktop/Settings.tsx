@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,7 +55,7 @@ function NameForm({
   const [firstName, setFirstName] = React.useState(initialFirstName);
   const [lastName, setLastName] = React.useState(initialLastName);
   const [pending, startTransition] = React.useTransition();
-  const [status, setStatus] = React.useState<{ kind: 'ok' | 'error'; msg: string } | null>(null);
+  const [status, setStatus] = React.useState<{ kind: 'ok'; msg: string } | null>(null);
 
   return (
     <Card>
@@ -68,7 +69,7 @@ function NameForm({
             setStatus(null);
             startTransition(async () => {
               const r = await updateName(fd);
-              if (!r.ok) setStatus({ kind: 'error', msg: r.message });
+              if (!r.ok) toast.error(r.message);
             });
           }}
         >
@@ -100,17 +101,7 @@ function NameForm({
               {pending && <Loader2 className="size-4 animate-spin" />}
               {t('saveName')}
             </Button>
-            {status && (
-              <span
-                className={
-                  status.kind === 'ok'
-                    ? 'text-xs text-[var(--color-moss-700)]'
-                    : 'text-xs text-[var(--destructive)]'
-                }
-              >
-                {status.msg}
-              </span>
-            )}
+            {status && <span className="text-xs text-[var(--color-moss-700)]">{status.msg}</span>}
           </div>
         </form>
       </CardContent>
@@ -122,7 +113,7 @@ function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
   const t = useTranslations('Settings');
   const formRef = React.useRef<HTMLFormElement>(null);
   const [pending, startTransition] = React.useTransition();
-  const [status, setStatus] = React.useState<{ kind: 'ok' | 'error'; msg: string } | null>(null);
+  const [status, setStatus] = React.useState<{ kind: 'ok'; msg: string } | null>(null);
 
   return (
     <Card>
@@ -149,7 +140,7 @@ function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
                 });
                 formRef.current?.reset();
               } else {
-                setStatus({ kind: 'error', msg: r.message });
+                toast.error(r.message);
               }
             });
           }}
@@ -194,17 +185,7 @@ function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
               {pending && <Loader2 className="size-4 animate-spin" />}
               {hasPassword ? t('savePassword') : t('setPasswordCta')}
             </Button>
-            {status && (
-              <span
-                className={
-                  status.kind === 'ok'
-                    ? 'text-xs text-[var(--color-moss-700)]'
-                    : 'text-xs text-[var(--destructive)]'
-                }
-              >
-                {status.msg}
-              </span>
-            )}
+            {status && <span className="text-xs text-[var(--color-moss-700)]">{status.msg}</span>}
           </div>
         </form>
       </CardContent>

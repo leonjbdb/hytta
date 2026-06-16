@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import type { DateRange } from 'react-day-picker';
 import { CheckCircle2, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ function parseISO(iso: string | null): Date | undefined {
 
 export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Props) {
   const t = useTranslations('Book');
+  const tErr = useTranslations('Errors');
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupParam = searchParams.get('group');
@@ -121,7 +123,6 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
 
   const [availability, setAvailability] = React.useState<AvailabilityTarget[]>([]);
   const [isPending, startTransition] = React.useTransition();
-  const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<null | 'PENDING' | 'CONFIRMED'>(null);
   const [managerNames, setManagerNames] = React.useState<string[]>([]);
 
@@ -144,7 +145,6 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
 
   const onConfirm = () => {
     if (!startDate || !endDate) return;
-    setError(null);
     startTransition(async () => {
       const selection = draft.selection;
       type ApiParticipant =
@@ -179,13 +179,13 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
       // hit the server.
       for (const p of participants) {
         if ('guestName' in p && !p.guestName) {
-          setError('UNKNOWN');
+          toast.error(tErr('generic'));
           return;
         }
       }
 
       if (participants.length === 0) {
-        setError('UNKNOWN');
+        toast.error(tErr('generic'));
         return;
       }
 
@@ -193,7 +193,7 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
         ? await updateBooking({ bookingId: edit.bookingId, startDate, endDate, participants })
         : await createBooking({ startDate, endDate, participants });
       if (!result.ok) {
-        setError(result.code === 'CONFLICT' ? 'CONFLICT' : 'UNKNOWN');
+        toast.error(result.code === 'CONFLICT' ? tErr('conflict') : tErr('generic'));
         return;
       }
       clear();
@@ -300,7 +300,6 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
               beds={beds}
               users={users}
               isPending={isPending}
-              error={error}
               onConfirm={onConfirm}
               submitLabel={edit ? t('saveChanges') : undefined}
             />

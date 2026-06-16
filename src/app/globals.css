@@ -139,6 +139,30 @@
 
 }
 
+/* Sonner warning toasts — a clean, standard amber. The toaster is pinned to
+ * the light theme (see AppToaster), so these `--normal-*` overrides just tint
+ * the warning toast's background, border, icon and title/text amber. */
+[data-sonner-toast][data-type='warning'] {
+  --normal-bg: #fef3c7;
+  --normal-border: #fcd34d;
+  --normal-text: #78350f;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type='warning'] [data-description] {
+  color: #78350f;
+}
+
+/* Sonner error toasts — a clean, standard red, same approach as the warning. */
+[data-sonner-toast][data-type='error'] {
+  --normal-bg: #fee2e2;
+  --normal-border: #fca5a5;
+  --normal-text: #991b1b;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type='error'] [data-description] {
+  color: #991b1b;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

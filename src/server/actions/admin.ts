@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '@/db/client';
 import { beds, reservations, rooms, users } from '@/db/schema';
 import { auth } from '@/lib/auth/config';
+import { readReservationService } from '@/server/booking/booking-client';
 import { notifyRoleChanged } from '@/lib/email/notify';
 
 export type AdminResult =
@@ -199,18 +200,15 @@ export async function deleteRoom(roomId: string): Promise<AdminResult> {
     return { ok: false, code: 'VALIDATION', message: 'Missing room id' };
   }
 
-  // Reject deletion if there are confirmed reservations referencing this room
-  // (directly or via its beds).
-  const direct = await db
-    .select({ id: reservations.id })
-    .from(reservations)
-    .where(eq(reservations.roomId, roomId))
-    .all();
-  if (direct.length > 0) {
+  // Reject deletion only while ACTIVE (non-cancelled) reservations reference
+  // this room — directly or via one of its beds. Cancelling a booking keeps its
+  // row with status CANCELLED, so those must NOT count, otherwise a room whose
+  // bookings were all cancelled could never be deleted.
+  if (await readReservationService().roomHasActiveReservations(roomId)) {
     return {
       ok: false,
       code: 'CONFLICT',
-      message: 'Room still has reservations — cancel them first',
+      message: 'Room still has active reservations — cancel them first',
     };
   }
 

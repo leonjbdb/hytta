@@ -340,22 +340,26 @@ function BookingGroupCard({
             </span>
           </span>
         </button>
-        {allowCancel && (canModify || (canDelete && g.rows.length > 1)) && (
-          <div className="mt-1 flex flex-wrap gap-2 pl-6">
-            {canModify && (
-              <Link
-                href={`/book?edit=${g.bookingId}`}
-                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-              >
-                <Pencil className="size-3.5" />
-                {t('edit')}
-              </Link>
-            )}
-            {canDelete && g.rows.length > 1 && (
-              <CancelBookingButton bookingId={g.bookingId} />
-            )}
-          </div>
-        )}
+        {allowCancel &&
+          (canModify || (canDelete && (g.rows.length > 1 || !isViewerBooker))) && (
+            <div className="mt-1 flex flex-wrap gap-2 pl-6">
+              {canModify && (
+                <Link
+                  href={`/book?edit=${g.bookingId}`}
+                  className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                >
+                  <Pencil className="size-3.5" />
+                  {t('edit')}
+                </Link>
+              )}
+              {/* Whole-booking cancel: multi-person bookings, plus any booking an
+                  admin/manager is acting on (not their own) — so the entire
+                  stay can be cancelled even when it's one person. */}
+              {canDelete && (g.rows.length > 1 || !isViewerBooker) && (
+                <CancelBookingButton bookingId={g.bookingId} />
+              )}
+            </div>
+          )}
       </div>
       {open && (
         <ul className="mt-2 flex flex-col gap-2 border-t border-[var(--border)] pt-2">

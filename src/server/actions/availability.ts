@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { getAvailability } from '@/lib/booking/availability';
+import { isDayFullyBooked, type RoomShape } from '@/lib/booking/capacity';
 import type { AvailabilityTarget } from '@/lib/booking/types';
 import { auth } from '@/lib/auth/config';
 
@@ -55,6 +56,14 @@ export interface DayOccupancy {
   pending: boolean;
   /** Names awaiting approval that day — tooltip on the pending dot. */
   pendingParticipants: string[];
+  /**
+   * True only when NO bookable space remains that day: a CONFIRMED whole-cottage
+   * reservation covers it, or every room is at capacity. Capacity-aware — a room
+   * with a free bed/slot (including any unlimited SLOTS room) keeps the day
+   * bookable. Drives the calendar's greyed-out / unselectable treatment; mirrors
+   * the model in `getAvailability` so the calendar matches what can be booked.
+   */
+  fullyBooked: boolean;
 }
 
 /**
@@ -122,6 +131,7 @@ export async function fetchOccupancy(from: string, to: string): Promise<DayOccup
         assignments: [],
         pending: false,
         pendingParticipants: [],
+        fullyBooked: false,
       };
 
     // PENDING requests don't occupy the day — they surface as a yellow dot.
@@ -155,6 +165,90 @@ export async function fetchOccupancy(from: string, to: string): Promise<DayOccup
       }
     }
     byDay.set(row.d, entry);
+  }
+
+  // --- Capacity-aware "fully booked" per day -------------------------------
+  // A day is fully booked only when no bookable space remains. Room shapes:
+  //   - SLOTS, slot_count NULL → unlimited: always bookable.
+  //   - SLOTS, slot_count N    → full when N confirmed slot/room rows cover it.
+  //   - BEDS                   → full when every bed is taken (a booked bed is
+  //                              exclusive; this matches the per-bed UI).
+  // A CONFIRMED whole-cottage reservation blocks everything regardless.
+  const roomShapes = await db.all<{
+    id: string;
+    mode: string;
+    slot_count: number | null;
+    bed_count: number;
+  }>(sql`
+    SELECT room.id AS id, room.capacity_mode AS mode, room.slot_count AS slot_count,
+           (SELECT COUNT(*) FROM bed WHERE bed.room_id = room.id) AS bed_count
+    FROM room
+  `);
+  const shapes: RoomShape[] = roomShapes.map((r) => ({
+    id: r.id,
+    mode: r.mode === 'SLOTS' ? 'SLOTS' : 'BEDS',
+    slotCount: r.slot_count,
+    bedCount: Number(r.bed_count),
+  }));
+  const hasUnlimitedSlots = shapes.some((r) => r.mode === 'SLOTS' && r.slotCount == null);
+
+  // The heavy per-room/day occupancy is only needed when the answer isn't
+  // already settled by "no rooms" or "an unlimited room always has space".
+  const needsDetail = shapes.length > 0 && !hasUnlimitedSlots;
+  const bedTaken = new Map<string, Map<string, number>>(); // day -> room -> taken beds
+  const slotTaken = new Map<string, Map<string, number>>(); // day -> room -> taken slots
+  if (needsDetail) {
+    const bedRows = await db.all<{ d: string; room_id: string; taken: number }>(sql`
+      WITH RECURSIVE days(d) AS (
+        SELECT ${parsed.data.from}
+        UNION ALL SELECT date(d, '+1 day') FROM days WHERE date(d, '+1 day') <= ${parsed.data.to}
+      )
+      SELECT days.d AS d, b.room_id AS room_id, COUNT(DISTINCT b.id) AS taken
+      FROM days
+      CROSS JOIN bed b
+      JOIN reservation r
+        ON r.status = 'CONFIRMED'
+        AND r.start_date <= days.d AND r.end_date >= days.d
+        AND (
+          (r.target_kind = 'BED'  AND r.bed_id  = b.id)
+          OR (r.target_kind = 'ROOM' AND r.room_id = b.room_id)
+          OR r.target_kind = 'FULL_COTTAGE'
+        )
+      GROUP BY days.d, b.room_id
+    `);
+    for (const row of bedRows) {
+      const m = bedTaken.get(row.d) ?? new Map<string, number>();
+      m.set(row.room_id, Number(row.taken));
+      bedTaken.set(row.d, m);
+    }
+    const slotRows = await db.all<{ d: string; room_id: string; taken: number }>(sql`
+      WITH RECURSIVE days(d) AS (
+        SELECT ${parsed.data.from}
+        UNION ALL SELECT date(d, '+1 day') FROM days WHERE date(d, '+1 day') <= ${parsed.data.to}
+      )
+      SELECT days.d AS d, r.room_id AS room_id, COUNT(*) AS taken
+      FROM days
+      JOIN reservation r
+        ON r.status = 'CONFIRMED' AND r.target_kind IN ('SLOT', 'ROOM')
+        AND r.room_id IS NOT NULL
+        AND r.start_date <= days.d AND r.end_date >= days.d
+      GROUP BY days.d, r.room_id
+    `);
+    for (const row of slotRows) {
+      const m = slotTaken.get(row.d) ?? new Map<string, number>();
+      m.set(row.room_id, Number(row.taken));
+      slotTaken.set(row.d, m);
+    }
+  }
+
+  const EMPTY = new Map<string, number>();
+  for (const entry of byDay.values()) {
+    entry.fullyBooked = isDayFullyBooked(
+      shapes,
+      entry.fullCottage,
+      bedTaken.get(entry.date) ?? EMPTY,
+      slotTaken.get(entry.date) ?? EMPTY,
+    );
   }
   return [...byDay.values()];
 }

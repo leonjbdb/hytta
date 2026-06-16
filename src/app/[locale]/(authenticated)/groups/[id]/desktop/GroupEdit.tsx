@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { CalendarPlus, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,7 +75,6 @@ export function GroupEdit({
     .map((m) => m.userId as string);
 
   const [name, setName] = React.useState(group.name);
-  const [error, setError] = React.useState<string | null>(null);
   const [savingName, startSaveName] = React.useTransition();
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [adding, startAdd] = React.useTransition();
@@ -102,10 +102,9 @@ export function GroupEdit({
 
   const saveName = () => {
     if (name.trim() === group.name) return;
-    setError(null);
     startSaveName(async () => {
       const r = await renameGroup(group.id, name);
-      if (!r.ok) setError(r.message);
+      if (!r.ok) toast.error(r.message);
     });
   };
 
@@ -115,43 +114,39 @@ export function GroupEdit({
     const otherOwners = registeredOwnerIds.filter((id) => id !== currentUserId);
 
     if (isSelf && otherOwners.length === 0) {
-      setError(t('cannotRemoveLastSelf'));
+      toast.error(t('cannotRemoveLastSelf'));
       return;
     }
     const message = isSelf ? t('confirmRemoveSelf') : t('confirmRemoveMember');
     if (!(await confirm({ message, confirmLabel: t('removeMember'), destructive: true }))) return;
-    setError(null);
     setPendingId(memberId);
     (async () => {
       const r = await removeGroupMember(memberId);
       setPendingId(null);
-      if (!r.ok) setError(r.message);
+      if (!r.ok) toast.error(r.message);
       else if (isSelf) router.push('/groups');
     })();
   };
 
   const updateRoom = (memberId: string, roomId: string | null) => {
-    setError(null);
     setPendingId(memberId);
     (async () => {
       const r = await updateGroupMember(memberId, { preferredRoomId: roomId });
       setPendingId(null);
-      if (!r.ok) setError(r.message);
+      if (!r.ok) toast.error(r.message);
     })();
   };
 
   const updateBed = (memberId: string, bedId: string | null) => {
-    setError(null);
     setPendingId(memberId);
     (async () => {
       const r = await updateGroupMember(memberId, { preferredBedId: bedId });
       setPendingId(null);
-      if (!r.ok) setError(r.message);
+      if (!r.ok) toast.error(r.message);
     })();
   };
 
   const addMember = (raw: string, room: string | null, bed: string | null) => {
-    setError(null);
     if (!raw) return;
     const isGuest = raw.startsWith(GUEST_PREFIX);
     startAdd(async () => {
@@ -160,7 +155,7 @@ export function GroupEdit({
         preferredRoomId: room,
         preferredBedId: bed,
       });
-      if (!r.ok) setError(r.message);
+      if (!r.ok) toast.error(r.message);
     });
   };
 
@@ -173,11 +168,10 @@ export function GroupEdit({
       }))
     )
       return;
-    setError(null);
     startAdd(async () => {
       const r = await deleteGroup(group.id);
       if (!r.ok) {
-        setError(r.message);
+        toast.error(r.message);
         return;
       }
       router.push('/groups');
@@ -207,12 +201,6 @@ export function GroupEdit({
           </Button>
         </div>
       </header>
-
-      {error && (
-        <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
-          {error}
-        </p>
-      )}
 
       <Card>
         <CardHeader>

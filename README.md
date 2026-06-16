@@ -154,8 +154,8 @@ loads an invented cottage ("Granheim"), a handful of `@example.com` members,
 rooms, bookings, and chores so you can click around without setting everything
 up by hand. It is never run on a deployment.
 
-The dev/build/start scripts use `bun --bun next ...` so server code (which
-imports `bun:sqlite`) runs under the Bun runtime.
+Cloudflare deployment is split into a real build phase and a deploy phase. The
+deploy phase uploads the already-built Worker output; it does not rebuild.
 
 ### First-run setup
 
@@ -188,50 +188,57 @@ password: demohytta2026
 Copy `.env.example` to `.env.local` and fill every value. The app refuses
 to boot otherwise.
 
-| Var                  | Source                                                  |
-| -------------------- | ------------------------------------------------------- |
-| `DATABASE_URL`       | `file:./data/hytta.db` for local dev                |
-| `AUTH_SECRET`        | `openssl rand -base64 32`                               |
-| `AUTH_URL`           | Public origin (see Apple note below)                    |
-| `AUTH_GOOGLE_ID`     | Google Cloud Console → Credentials → OAuth Client ID   |
-| `AUTH_GOOGLE_SECRET` | …same screen, the client secret                         |
-| `AUTH_APPLE_ID`      | Apple Developer → Identifiers → Services ID            |
-| `APPLE_TEAM_ID`      | Membership page (10-character code)                    |
-| `APPLE_KEY_ID`       | Keys → Sign in with Apple → Key ID (10-character code) |
-| `APPLE_PRIVATE_KEY`  | Contents of the `AuthKey_*.p8` PEM file (multiline)    |
+| Var                   | Source / notes                                                |
+| --------------------- | ------------------------------------------------------------- |
+| `HYTTA_D1_DATABASE_ID` | Cloudflare D1 UUID from `wrangler d1 create hytta`           |
+| `AUTH_SECRET`         | `openssl rand -base64 32`                                     |
+| `AUTH_URL`            | Public origin in production, e.g. `https://hytta.example.com` |
+| `EMAIL_PROVIDER`      | `resend` for Cloudflare Workers                              |
+| `EMAIL_FROM`          | Verified sender, e.g. `Hytta <noreply@example.no>`           |
+| `RESEND_API_KEY`      | Resend API key for real email delivery                       |
+| `ADMIN_EMAILS`        | Optional comma-separated admin auto-promotion list            |
+| `TEST_USER_*`         | Optional env-managed test account                            |
 
-The Apple client secret JWT is built at startup from the four Apple
-variables (`src/lib/auth/apple-secret.ts`).
+`HYTTA_D1_DATABASE_ID` is not committed to Wrangler config. Remote scripts read
+it from `.env.local` (or the shell environment), generate ignored
+`wrangler.local.jsonc` files, and pass those files to Wrangler/OpenNext.
 
-### Apple SSO local dev caveat
+### Cloudflare Workers deployment
 
-Apple **does not allow `localhost`** as an OAuth redirect URI and requires
-HTTPS. For local development:
+Use **Cloudflare Workers Builds**, not a static Pages build. Configure the
+GitHub deployment with these commands:
 
-```bash
-cloudflared tunnel --url http://localhost:3000
-# or:
-ngrok http 3000
-```
+| Field          | Command          |
+| -------------- | ---------------- |
+| Build command  | `bun run build`  |
+| Deploy command | `bun run deploy` |
 
-Set `AUTH_URL` to the resulting `https://...` host and register that exact
-host as the Service ID's redirect URL inside the Apple Developer console.
+`bun run build` generates the account-local Wrangler config from
+`HYTTA_D1_DATABASE_ID` and runs `opennextjs-cloudflare build`, producing
+`.open-next`.
+
+`bun run deploy` deploys the Booking Durable Object worker, then runs
+`opennextjs-cloudflare deploy` for the already-built app worker. If `.open-next`
+is missing, deploy fails instead of building. Cloudflare Workers do not have a
+long-running runtime start command after deployment.
 
 ## Scripts
 
 | Command                | What it does                                  |
 | ---------------------- | --------------------------------------------- |
 | `bun run dev`          | Next 16 dev server (Turbopack, Bun runtime)   |
-| `bun run build`        | Production build                              |
-| `bun run start`        | Production server                             |
+| `bun run build`        | Build OpenNext Cloudflare Worker output       |
+| `bun run start`        | Next production server; not used by Workers   |
 | `bun run typecheck`    | `tsc --noEmit`                                |
 | `bun test`             | Booking + i18n test suites                    |
 | `bun run test:i18n`    | Just i18n parity / Oxford-spelling guard      |
 | `bun run db:generate`  | Generate a new migration from `schema.ts`     |
 | `bun run db:migrate`   | Apply migrations to the local D1              |
+| `bun run db:migrate:remote` | Apply migrations to Cloudflare D1 using `HYTTA_D1_DATABASE_ID` |
 | `bun run demo`         | Load fictional demo data (idempotent)         |
 | `bun run db:reset`     | Wipe local D1 + re-migrate (`--demo` to load) |
 | `bun run db:studio`    | Drizzle Studio                                |
+| `bun run deploy`       | Deploy BookingDO + already-built app worker   |
 | `bun run lint`         | `next lint`                                   |
 
 ## Verification checklist

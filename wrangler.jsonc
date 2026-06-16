@@ -13,9 +13,8 @@
     {
       "binding": "DB",
       "database_name": "hytta",
-      // Run `wrangler d1 create hytta` and paste the id here AND into
-      // workers/booking-do/wrangler.jsonc (both bind the same database).
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      // Remote scripts inject `database_id` from HYTTA_D1_DATABASE_ID into
+      // ignored wrangler.local.jsonc files. Keep tracked config account-neutral.
       "migrations_dir": "src/db/migrations"
     }
   ],
