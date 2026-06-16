@@ -8,19 +8,35 @@ import { toast } from 'sonner';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { credentialsLogin } from '@/server/actions/auth';
+import { DEMO_NOTE_FOLD_CLASS, DEMO_NOTE_PAPER_CLASS, demoNoteStyle } from '../demo-note';
 
 interface DemoLoginAccount {
   name: string;
   email: string;
   password: string;
   role: 'adminManager' | 'member';
+}
+
+/** Scatter positions (with size + rotation) for the demo-login notes. */
+const DEMO_NOTE_POSITIONS = [
+  'left-[31.5rem] top-0 w-56 -rotate-[5deg]',
+  'right-0 top-10 w-56 rotate-[3deg]',
+  'left-[29rem] top-[11.5rem] w-60 rotate-[1.5deg]',
+  'right-3 top-[15.25rem] w-56 -rotate-[4deg]',
+  'left-[32rem] top-[24rem] w-56 rotate-[5deg]',
+  'right-1 top-[28rem] w-60 rotate-[1deg]',
+  'left-16 top-[31.5rem] w-56 -rotate-[3deg]',
+  'left-[26rem] top-[35.5rem] w-56 rotate-[4deg]',
+] as const;
+
+function demoNotePosition(index: number): string {
+  return DEMO_NOTE_POSITIONS[index % DEMO_NOTE_POSITIONS.length] ?? DEMO_NOTE_POSITIONS[0]!;
 }
 
 export function Credentials({
@@ -34,19 +50,27 @@ export function Credentials({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const demoMode = demoAccounts.length > 0;
-  const shellClassName = demoMode
-    ? 'grid w-full max-w-5xl grid-cols-[minmax(0,26rem)_minmax(22rem,1fr)] items-start gap-5'
-    : 'flex w-full max-w-md justify-center';
 
   return (
     <div className="flex w-full justify-center px-2 py-4">
-      <div className={shellClassName}>
-        <Card className="w-full max-w-md">
+      <div
+        className={
+          demoMode
+            ? 'relative min-h-[48rem] w-full max-w-5xl'
+            : 'flex w-full max-w-md justify-center'
+        }
+      >
+        <Card
+          className={
+            demoMode
+              ? 'absolute left-0 top-[8.75rem] z-20 w-full max-w-md'
+              : 'w-full max-w-md'
+          }
+        >
           <CardHeader>
             <h1 className="text-xl font-semibold leading-tight tracking-tight">
               {t('credentialsTitle')}
             </h1>
-            <CardDescription>{t('credentialsSubtitle')}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <form
@@ -104,7 +128,7 @@ export function Credentials({
           </CardContent>
         </Card>
         {demoMode && (
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="absolute inset-0">
             {demoAccounts.map((account, index) => (
               <button
                 key={account.email}
@@ -113,27 +137,26 @@ export function Credentials({
                   setEmail(account.email);
                   setPassword(account.password);
                 }}
+                style={demoNoteStyle(index)}
                 className={[
-                  'min-h-32 rounded-sm border border-[#d6bd55] bg-[#fff1a8] p-3 text-left text-[#3a2a12]',
-                  'shadow-[0_10px_22px_rgba(58,42,18,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(58,42,18,0.2)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]',
-                  index % 4 === 0 ? '-rotate-1' : '',
-                  index % 4 === 1 ? 'rotate-1' : '',
-                  index % 4 === 2 ? 'rotate-[0.6deg]' : '',
-                  index % 4 === 3 ? '-rotate-[0.6deg]' : '',
+                  'absolute min-h-36 hover:z-30',
+                  demoNotePosition(index),
+                  DEMO_NOTE_PAPER_CLASS,
                 ].join(' ')}
               >
-                <span className="block font-mono text-[11px] uppercase tracking-normal text-[#80661e]">
+                <span aria-hidden className={DEMO_NOTE_FOLD_CLASS} />
+                <span className="relative block font-mono text-[10px] uppercase tracking-normal text-[#80661e]">
                   {account.role === 'adminManager'
                     ? t('demoRoleAdminManager')
                     : t('demoRoleMember')}
                 </span>
-                <span className="mt-1 block text-base font-semibold leading-tight">
+                <span className="relative mt-1 block text-base font-semibold leading-tight">
                   {account.name}
                 </span>
-                <span className="mt-3 block break-all font-mono text-xs leading-snug">
+                <span className="relative mt-3 block break-all font-mono text-xs leading-snug">
                   {account.email}
                 </span>
-                <span className="mt-1 block font-mono text-xs leading-snug">
+                <span className="relative mt-1 block font-mono text-xs leading-snug">
                   {account.password}
                 </span>
               </button>

@@ -38,8 +38,9 @@ default every hour, and users are warned before reset.
 - [x] Cloudflare env typing and production binding access must allow demo app
       config to omit `DB`/`BOOKING`, while non-demo paths fail clearly if those
       bindings are missing.
-- [x] Cache-backed demo storage must use Cloudflare `caches.default` directly
-      with an explicit Worker cache-storage type, not a database or fallback.
+- [x] Cache-backed demo storage must use Cloudflare `caches.default` in the
+      Worker and a process-local serialized cache only for local `next dev` /
+      test runtime, not D1 or another database.
 - [x] The cache-backed D1 shim must preserve Drizzle-facing driver contracts
       for booleans and `timestamp_ms` fields so normal app pages keep receiving
       the same shaped values they get from real D1.

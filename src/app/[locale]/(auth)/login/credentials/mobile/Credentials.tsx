@@ -8,19 +8,30 @@ import { toast } from 'sonner';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { credentialsLogin } from '@/server/actions/auth';
+import { DEMO_NOTE_FOLD_CLASS, DEMO_NOTE_PAPER_CLASS, demoNoteStyle } from '../demo-note';
 
 interface DemoLoginAccount {
   name: string;
   email: string;
   password: string;
   role: 'adminManager' | 'member';
+}
+
+const MOBILE_NOTE_ROTATIONS = [
+  '-rotate-[1.2deg]',
+  'rotate-[1.6deg]',
+  '-rotate-[0.7deg]',
+  'rotate-[0.9deg]',
+] as const;
+
+function mobileNoteRotation(index: number): (typeof MOBILE_NOTE_ROTATIONS)[number] {
+  return MOBILE_NOTE_ROTATIONS[index % MOBILE_NOTE_ROTATIONS.length] ?? MOBILE_NOTE_ROTATIONS[0]!;
 }
 
 export function Credentials({
@@ -43,7 +54,6 @@ export function Credentials({
           <h1 className="text-xl font-semibold leading-tight tracking-tight">
             {t('credentialsTitle')}
           </h1>
-          <CardDescription>{t('credentialsSubtitle')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <form
@@ -101,7 +111,7 @@ export function Credentials({
               </Button>
               {showDemoLogins && (
                 <div id="demo-login-list" className="grid gap-2">
-                  {demoAccounts.map((account) => (
+                  {demoAccounts.map((account, index) => (
                     <button
                       key={account.email}
                       type="button"
@@ -109,20 +119,22 @@ export function Credentials({
                         setEmail(account.email);
                         setPassword(account.password);
                       }}
-                      className="rounded-sm border border-[#d6bd55] bg-[#fff1a8] p-3 text-left text-[#3a2a12] shadow-[0_8px_18px_rgba(58,42,18,0.14)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                      style={demoNoteStyle(index)}
+                      className={['relative', mobileNoteRotation(index), DEMO_NOTE_PAPER_CLASS].join(' ')}
                     >
-                      <span className="block font-mono text-[11px] uppercase tracking-normal text-[#80661e]">
+                      <span aria-hidden className={DEMO_NOTE_FOLD_CLASS} />
+                      <span className="relative block font-mono text-[11px] uppercase tracking-normal text-[#80661e]">
                         {account.role === 'adminManager'
                           ? t('demoRoleAdminManager')
                           : t('demoRoleMember')}
                       </span>
-                      <span className="mt-1 block text-sm font-semibold leading-tight">
+                      <span className="relative mt-1 block text-sm font-semibold leading-tight">
                         {account.name}
                       </span>
-                      <span className="mt-2 block break-all font-mono text-xs leading-snug">
+                      <span className="relative mt-2 block break-all font-mono text-xs leading-snug">
                         {account.email}
                       </span>
-                      <span className="mt-1 block font-mono text-xs leading-snug">
+                      <span className="relative mt-1 block font-mono text-xs leading-snug">
                         {account.password}
                       </span>
                     </button>

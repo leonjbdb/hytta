@@ -14,8 +14,8 @@
  *
  * Additive & idempotent: every row uses a deterministic `demo-*` id, so
  * re-running adds the demo content to an existing instance without deleting
- * anything else. Demo accounts' password hash and demo reservations are
- * refreshed on every run so a changed `DEMO_PASSWORD`, relative dates, and
+ * anything else. Demo accounts' password hashes and demo reservations are
+ * refreshed on every run so changed demo passwords, relative dates, and
  * revised target assignments take effect without a reset. To start from a
  * clean slate instead, run `bun run db:reset` first.
  *
@@ -25,7 +25,7 @@
  *
  * Inserts:
  *   - cottage name "The Dwarfs' Cottage" (so the /setup gate is already satisfied)
- *   - 8 demo members, all sharing the same password (printed at the end)
+ *   - 8 demo members, each with their own password (printed at the end)
  *   - 4 rooms (3 bed-based, 1 slot-based) with their beds, coloured from the
  *     real selectable palette (see ROOM_COLOR_PALETTE)
  *   - bookings covering every state across a relative past/future timeline:
@@ -33,7 +33,7 @@
  *     cottage weekends, pending requests, and a cancelled one
  *   - invitations from the admin in every state: an open link, two awaiting a
  *     named recipient, an expired one, and a revoked one
- *   - a few dugnad (chores), one completed by someone other than its creator
+ *   - 30 dugnad (chores), 21 completed by different demo members
  *   - two group templates (one with a guest member)
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -52,6 +52,7 @@ import {
   users,
 } from './schema';
 import { hashPassword } from '@/lib/auth/password';
+import { demoPasswordFor } from '@/lib/demo-constants';
 
 const COTTAGE_NAME = "The Dwarfs' Cottage";
 
@@ -107,9 +108,6 @@ function assertLocalDemoRun(): void {
   }
 }
 
-/** Shared login for every demo account. Printed at the end of the run. */
-const DEMO_PASSWORD = 'password';
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** ISO `YYYY-MM-DD`, `offsetDays` from today, so demo bookings stay relative. */
 const iso = (offsetDays: number): string =>
@@ -149,45 +147,72 @@ interface DemoRoom {
 const DEMO_ROOMS: DemoRoom[] = [
   {
     id: 'demo-room-loft',
-    nameNb: 'Loftet',
-    nameEn: 'The Loft',
-    icon: 'bed-double',
-    color: '#3b82f6', // sky
+    nameNb: 'Snøhvits kammer',
+    nameEn: "Snow White's Chamber",
+    icon: 'heart',
+    color: '#dc2626',
     capacityMode: 'BEDS',
     beds: [
-      { id: 'demo-bed-loft-d', kind: 'DOUBLE', label: 'LOFT-DOUBLE' },
-      { id: 'demo-bed-loft-s', kind: 'SINGLE', label: 'LOFT-SINGLE' },
+      { id: 'demo-bed-loft-d', kind: 'DOUBLE', label: 'APPLE-RED' },
+      { id: 'demo-bed-loft-s', kind: 'SINGLE', label: 'FOREST-NOOK' },
     ],
   },
   {
     id: 'demo-room-hems',
-    nameNb: 'Hemsen',
-    nameEn: 'The Mezzanine',
+    nameNb: 'Dvergenes sovesal',
+    nameEn: "The Dwarfs' Bunkroom",
     icon: 'bed-single',
-    color: '#14b8a6', // mint
+    color: '#ca8a04',
     capacityMode: 'BEDS',
     beds: [
-      { id: 'demo-bed-hems-1', kind: 'SINGLE', label: 'HEMS-1' },
-      { id: 'demo-bed-hems-2', kind: 'SINGLE', label: 'HEMS-2' },
+      { id: 'demo-bed-hems-1', kind: 'SINGLE', label: 'PICKAXE-1' },
+      { id: 'demo-bed-hems-2', kind: 'SINGLE', label: 'PICKAXE-2' },
     ],
   },
   {
     id: 'demo-room-anneks',
-    nameNb: 'Anneks',
-    nameEn: 'The Annex',
-    icon: 'tree',
-    color: '#16a34a', // forest
+    nameNb: 'Docs verksted',
+    nameEn: "Doc's Workshop",
+    icon: 'sparkles',
+    color: '#7c3aed',
     capacityMode: 'BEDS',
-    beds: [{ id: 'demo-bed-anneks-d', kind: 'DOUBLE', label: 'ANNEX-DOUBLE' }],
+    beds: [{ id: 'demo-bed-anneks-d', kind: 'DOUBLE', label: 'WORKBENCH-COT' }],
   },
   {
     id: 'demo-room-stua',
-    nameNb: 'Stua',
-    nameEn: 'The Living Room',
+    nameNb: 'Peisestua',
+    nameEn: 'The Hearth Room',
     icon: 'sofa',
-    color: '#f97316', // coral
+    color: '#ea580c',
     capacityMode: 'SLOTS',
     slotCount: 4,
+  },
+  {
+    id: 'demo-room-mine',
+    nameNb: 'Gruvegangen',
+    nameEn: 'The Mine Tunnel',
+    icon: 'mountain',
+    color: '#64748b',
+    capacityMode: 'SLOTS',
+    slotCount: 6,
+  },
+  {
+    id: 'demo-room-forest',
+    nameNb: 'Eventyrskogen',
+    nameEn: 'The Enchanted Forest',
+    icon: 'tree',
+    color: '#16a34a',
+    capacityMode: 'SLOTS',
+    slotCount: null,
+  },
+  {
+    id: 'demo-room-well',
+    nameNb: 'Ønskebrønnen',
+    nameEn: 'The Wishing Well',
+    icon: 'waves',
+    color: '#0ea5e9',
+    capacityMode: 'SLOTS',
+    slotCount: 3,
   },
 ];
 
@@ -292,7 +317,7 @@ const CURATED_DEMO_BOOKINGS: DemoBooking[] = [
   // A whole-cottage winter stay by one member.
   { id: 'demo-res-full', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'FULL_COTTAGE', startOffset: -132, endOffset: -129, status: 'CONFIRMED' },
 
-  // A busy old weekend where every area has someone in it.
+  // A busy old weekend where several areas have someone in them.
   { id: 'demo-res-winter-loft', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
   { id: 'demo-res-winter-hems', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
   { id: 'demo-res-winter-annex', bookerId: 'demo-doc', guestName: 'The Huntsman', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
@@ -313,17 +338,43 @@ const CURATED_DEMO_BOOKINGS: DemoBooking[] = [
   // A recent partly used weekend across different areas.
   { id: 'demo-res-recent-loft', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
   { id: 'demo-res-recent-hems', bookerId: 'demo-grumpy', guestName: 'Forest Visitor', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
+  // A denser cluster of stays right around "today" so the calendar looks lived-in.
+  { id: 'demo-res-recent-anneks-sneezy', bookerId: 'demo-sneezy', userId: 'demo-sneezy', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -10, endOffset: -8, status: 'CONFIRMED' },
+  { id: 'demo-res-recent-hems1-bashful', bookerId: 'demo-bashful', userId: 'demo-bashful', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: -6, endOffset: -4, status: 'CONFIRMED' },
+  { id: 'demo-res-recent-forest-happy', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'SLOT', roomId: 'demo-room-forest', startOffset: -5, endOffset: -3, status: 'CONFIRMED' },
+  { id: 'demo-res-recent-stua-dopey', bookerId: 'demo-dopey', userId: 'demo-dopey', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: -3, endOffset: -1, status: 'CONFIRMED' },
+  { id: 'demo-res-now-well-doc', bookerId: 'demo-doc', userId: 'demo-doc', targetKind: 'SLOT', roomId: 'demo-room-well', startOffset: 0, endOffset: 1, status: 'CONFIRMED' },
+  { id: 'demo-res-now-stua-happy', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 0, endOffset: 2, status: 'CONFIRMED' },
+  { id: 'demo-res-soon-mine-dopey', bookerId: 'demo-dopey', userId: 'demo-dopey', targetKind: 'SLOT', roomId: 'demo-room-mine', startOffset: 4, endOffset: 5, status: 'CONFIRMED' },
+  { id: 'demo-res-soon-hems2-grumpy', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 7, endOffset: 8, status: 'CONFIRMED' },
 
   /* --- future confirmed bookings --- */
+  { id: 'demo-res-near-forest-huntsman', bookingId: 'demo-bk-near-forest', bookerId: 'demo-snow-white', guestName: 'The Huntsman', targetKind: 'SLOT', roomId: 'demo-room-forest', startOffset: 1, endOffset: 2, status: 'CONFIRMED' },
+  { id: 'demo-res-near-forest-messenger', bookingId: 'demo-bk-near-forest', bookerId: 'demo-snow-white', guestName: 'Castle Messenger', targetKind: 'SLOT', roomId: 'demo-room-forest', startOffset: 1, endOffset: 2, status: 'CONFIRMED' },
+  { id: 'demo-res-near-well-sleepy', bookerId: 'demo-sleepy', userId: 'demo-sleepy', targetKind: 'SLOT', roomId: 'demo-room-well', startOffset: 2, endOffset: 3, status: 'CONFIRMED' },
+  { id: 'demo-res-near-mine-bashful', bookerId: 'demo-bashful', userId: 'demo-bashful', targetKind: 'SLOT', roomId: 'demo-room-mine', startOffset: 3, endOffset: 4, status: 'CONFIRMED' },
   // A long weekend in one specific bed. Avoid whole-room rows for one member
   // here, because the occupancy UI can make that look like the same person is
   // assigned to multiple beds in the room.
   { id: 'demo-res-loft', bookerId: 'demo-doc', userId: 'demo-doc', targetKind: 'BED', bedId: 'demo-bed-loft-s', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
+  { id: 'demo-res-near-chamber-sneezy', bookerId: 'demo-sneezy', userId: 'demo-sneezy', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: 6, endOffset: 7, status: 'CONFIRMED' },
+  { id: 'demo-res-near-workshop-guest', bookerId: 'demo-doc', guestName: 'Woodland Friend', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 8, endOffset: 9, status: 'CONFIRMED' },
+  { id: 'demo-res-near-hearth-dopey', bookerId: 'demo-dopey', userId: 'demo-dopey', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 9, endOffset: 11, status: 'CONFIRMED' },
+  { id: 'demo-res-near-mine-guests-a', bookingId: 'demo-bk-near-mine', bookerId: 'demo-grumpy', guestName: 'Forest Visitor', targetKind: 'SLOT', roomId: 'demo-room-mine', startOffset: 10, endOffset: 12, status: 'CONFIRMED' },
+  { id: 'demo-res-near-mine-guests-b', bookingId: 'demo-bk-near-mine', bookerId: 'demo-grumpy', guestName: 'Castle Messenger', targetKind: 'SLOT', roomId: 'demo-room-mine', startOffset: 10, endOffset: 12, status: 'CONFIRMED' },
+  { id: 'demo-res-near-forest-dopey', bookerId: 'demo-dopey', userId: 'demo-dopey', targetKind: 'SLOT', roomId: 'demo-room-forest', startOffset: 12, endOffset: 13, status: 'CONFIRMED' },
+  { id: 'demo-res-near-well-snow', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'SLOT', roomId: 'demo-room-well', startOffset: 14, endOffset: 16, status: 'CONFIRMED' },
+  { id: 'demo-res-near-chamber-bashful', bookerId: 'demo-bashful', userId: 'demo-bashful', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: 17, endOffset: 18, status: 'CONFIRMED' },
+  { id: 'demo-res-near-hearth-sneezy', bookerId: 'demo-sneezy', userId: 'demo-sneezy', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 19, endOffset: 21, status: 'CONFIRMED' },
+  { id: 'demo-res-near-forest-doc', bookerId: 'demo-doc', userId: 'demo-doc', targetKind: 'SLOT', roomId: 'demo-room-forest', startOffset: 20, endOffset: 22, status: 'CONFIRMED' },
 
   // A future whole-cottage stay by one member.
   { id: 'demo-res-summer-full-grumpy', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'FULL_COTTAGE', startOffset: 24, endOffset: 27, status: 'CONFIRMED' },
+  { id: 'demo-res-near-bunkroom-sleepy', bookerId: 'demo-sleepy', userId: 'demo-sleepy', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 28, endOffset: 30, status: 'CONFIRMED' },
+  { id: 'demo-res-near-workshop-huntsman', bookerId: 'demo-snow-white', guestName: 'The Huntsman', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 29, endOffset: 31, status: 'CONFIRMED' },
+  { id: 'demo-res-near-forest-bashful', bookerId: 'demo-bashful', userId: 'demo-bashful', targetKind: 'SLOT', roomId: 'demo-room-forest', startOffset: 31, endOffset: 33, status: 'CONFIRMED' },
 
-  // Another busy future weekend where every area has someone in it.
+  // Another busy future weekend where several areas have someone in them.
   { id: 'demo-res-future-loft', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
   { id: 'demo-res-future-hems', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
   { id: 'demo-res-future-annex', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
@@ -432,42 +483,256 @@ interface DemoDugnad {
 
 const DEMO_DUGNAD: DemoDugnad[] = [
   {
-    id: 'demo-dugnad-bod',
-    title: 'Rydde og feie i boden',
+    id: 'demo-dugnad-gem-ledger',
+    title: 'Tally the gemstones',
     description:
-      'Boden trenger en opprydding før sesongen. Sorter verktøy, fe'
-      + 'i gulvet og kast det som er ødelagt. Regn med en times tid.',
-    createdBy: 'demo-snow-white',
-  },
-  {
-    id: 'demo-dugnad-roykvarsler',
-    title: 'Sjekke røykvarslere og brannslukker',
-    description:
-      'Test alle røykvarslerne og bytt batteri ved behov. Sjekk at '
-      + 'brannslukkeren ikke er utgått. Nye batterier ligger i kjøkkenskuffen.',
+      'Count the diamonds and rubies brought up from the mine, record them in the ledger, and lock the strongbox before supper.',
     createdBy: 'demo-doc',
     completedBy: 'demo-doc',
-    completedDaysAgo: 9,
+    completedDaysAgo: 2,
   },
   {
-    id: 'demo-dugnad-veranda',
-    title: 'Koste verandaen og sette ut hagemøblene',
+    id: 'demo-dugnad-pickaxe-sharpen',
+    title: 'Sharpen the seven pickaxes',
     description:
-      'Kost bort vinterskitt fra verandaen og hent hagemøblene fram fra boden. '
-      + 'Putene ligger i den blå plastkassen.',
+      'Put a fresh edge on every pickaxe at the grindstone so no one swings a blunt one down in the mine.',
     createdBy: 'demo-grumpy',
-    // Completed by someone other than the creator — exercises the "done, by
-    // another member" state (and the relaxed dugnad_completed_shape check).
-    completedBy: 'demo-happy',
+    completedBy: 'demo-sleepy',
     completedDaysAgo: 3,
   },
   {
-    id: 'demo-dugnad-vann',
-    title: 'Åpne for vannet og sjekke for lekkasjer',
+    id: 'demo-dugnad-sweep-cottage',
+    title: 'Sweep the cottage floor',
     description:
-      'Skru på hovedstoppekranen, slipp opp lufta i springene og se etter '
-      + 'lekkasjer under vasken og ved varmtvannsberederen.',
+      'Sweep the dust and stray gem-chips from the floor and shake out the little rug by the hearth.',
+    createdBy: 'demo-grumpy',
+    completedBy: 'demo-happy',
+    completedDaysAgo: 4,
+  },
+  {
+    id: 'demo-dugnad-make-beds',
+    title: 'Make the seven little beds',
+    description:
+      'Smooth the quilts on all seven beds and plump the pillows so each bed is ready before nightfall.',
+    createdBy: 'demo-bashful',
+    completedBy: 'demo-dopey',
+    completedDaysAgo: 5,
+  },
+  {
+    id: 'demo-dugnad-wash-dishes',
+    title: 'Wash the plates and cups',
+    description:
+      'Scrub the seven little plates, cups, and spoons after supper and stand them to dry on the dresser.',
     createdBy: 'demo-snow-white',
+    completedBy: 'demo-snow-white',
+    completedDaysAgo: 6,
+  },
+  {
+    id: 'demo-dugnad-wind-clock',
+    title: 'Wind the cuckoo clock',
+    description:
+      'Wind the carved cuckoo clock on the mantel and dust the little bird and its perch.',
+    createdBy: 'demo-doc',
+    completedBy: 'demo-happy',
+    completedDaysAgo: 7,
+  },
+  {
+    id: 'demo-dugnad-air-bedding',
+    title: 'Air out the bedding',
+    description:
+      'Hang the quilts and blankets on the line between the trees and beat the dust from them in the sun.',
+    createdBy: 'demo-sneezy',
+    completedBy: 'demo-sneezy',
+    completedDaysAgo: 8,
+  },
+  {
+    id: 'demo-dugnad-lay-fire',
+    title: 'Lay the hearth fire',
+    description:
+      'Clear the ash from the great stone hearth and stack fresh kindling so the fire is ready to light at dusk.',
+    createdBy: 'demo-sleepy',
+    completedBy: 'demo-bashful',
+    completedDaysAgo: 9,
+  },
+  {
+    id: 'demo-dugnad-trim-lanterns',
+    title: 'Trim the mine lanterns',
+    description:
+      'Trim the wicks and top up the oil in all seven mine lanterns so they burn bright in the tunnels.',
+    createdBy: 'demo-doc',
+    completedBy: 'demo-doc',
+    completedDaysAgo: 10,
+  },
+  {
+    id: 'demo-dugnad-fill-water',
+    title: 'Fill the water bucket',
+    description:
+      'Draw fresh water from the wishing well and fill the kitchen bucket and the kettle.',
+    createdBy: 'demo-dopey',
+    completedBy: 'demo-dopey',
+    completedDaysAgo: 11,
+  },
+  {
+    id: 'demo-dugnad-stack-firewood',
+    title: 'Stack the firewood',
+    description:
+      'Split and stack the firewood under the eaves by the door, and keep the driest logs nearest the hearth.',
+    createdBy: 'demo-grumpy',
+    completedBy: 'demo-grumpy',
+    completedDaysAgo: 12,
+  },
+  {
+    id: 'demo-dugnad-rake-path',
+    title: 'Rake the path to the mine',
+    description:
+      'Rake the leaves and twigs from the forest path and roll any loose stones out of the way.',
+    createdBy: 'demo-happy',
+    completedBy: 'demo-happy',
+    completedDaysAgo: 13,
+  },
+  {
+    id: 'demo-dugnad-scrub-cauldron',
+    title: 'Scrub the cooking cauldron',
+    description:
+      'Scrub the big cauldron clean and hang the ladle and pots back on their hooks above the hearth.',
+    createdBy: 'demo-snow-white',
+    completedBy: 'demo-doc',
+    completedDaysAgo: 14,
+  },
+  {
+    id: 'demo-dugnad-fresh-candles',
+    title: 'Set out fresh candles',
+    description:
+      'Replace the burnt stubs in the candlesticks on the table and along the windowsills; spares are in the dresser drawer.',
+    createdBy: 'demo-bashful',
+    completedBy: 'demo-sleepy',
+    completedDaysAgo: 15,
+  },
+  {
+    id: 'demo-dugnad-polish-gems',
+    title: 'Polish the gems for market',
+    description:
+      'Buff the cut diamonds and rubies until they sparkle and sort them into the little velvet pouches.',
+    createdBy: 'demo-happy',
+    completedBy: 'demo-bashful',
+    completedDaysAgo: 16,
+  },
+  {
+    id: 'demo-dugnad-sweep-step',
+    title: 'Sweep the front step',
+    description:
+      'Sweep the leaves from the front step and shake out the doormat so no mud is tracked indoors.',
+    createdBy: 'demo-sneezy',
+    completedBy: 'demo-sneezy',
+    completedDaysAgo: 17,
+  },
+  {
+    id: 'demo-dugnad-oil-carts',
+    title: 'Oil the mine carts',
+    description:
+      'Grease the wheels and axles of the mine carts so they roll quiet and do not squeal in the tunnels.',
+    createdBy: 'demo-grumpy',
+    completedBy: 'demo-grumpy',
+    completedDaysAgo: 18,
+  },
+  {
+    id: 'demo-dugnad-clear-gutter',
+    title: 'Clear the roof gutter',
+    description:
+      'Clear the fallen leaves from the gutter above the porch; use the ladder only when someone else is nearby.',
+    createdBy: 'demo-doc',
+    completedBy: 'demo-doc',
+    completedDaysAgo: 19,
+  },
+  {
+    id: 'demo-dugnad-stock-pantry',
+    title: 'Stock the pantry shelves',
+    description:
+      'Tidy the pantry and label the crocks of flour, sugar, honey, and dried forest berries.',
+    createdBy: 'demo-snow-white',
+    completedBy: 'demo-snow-white',
+    completedDaysAgo: 20,
+  },
+  {
+    id: 'demo-dugnad-herb-cupboard',
+    title: 'Restock the herb cupboard',
+    description:
+      'Check the salves, bandages, and dried herbs, and note down whatever must be gathered from the forest.',
+    createdBy: 'demo-doc',
+    completedBy: 'demo-happy',
+    completedDaysAgo: 21,
+  },
+  {
+    id: 'demo-dugnad-mend-quilts',
+    title: 'Mend the patchwork quilts',
+    description:
+      'Sew up the torn patches on the quilts and fold them back at the foot of each bed.',
+    createdBy: 'demo-sleepy',
+    completedBy: 'demo-dopey',
+    completedDaysAgo: 22,
+  },
+  {
+    id: 'demo-dugnad-door-bolt',
+    title: 'Mend the door bolt',
+    description:
+      'The cottage door bolt sticks. Plane the edge and oil the hinge so it locks fast against unwelcome callers.',
+    createdBy: 'demo-grumpy',
+  },
+  {
+    id: 'demo-dugnad-paint-shutters',
+    title: 'Touch up the window shutters',
+    description:
+      'Sand the chips and dab fresh paint on the carved shutters once the weather turns dry.',
+    createdBy: 'demo-bashful',
+  },
+  {
+    id: 'demo-dugnad-empty-scraps',
+    title: 'Empty the scrap pail',
+    description:
+      'Carry the kitchen scraps out to the heap behind the garden, rinse the pail, and set it back by the door.',
+    createdBy: 'demo-dopey',
+  },
+  {
+    id: 'demo-dugnad-wash-curtains',
+    title: 'Wash the loft curtains',
+    description:
+      'Take down the little curtains in the sleeping loft and wash them on a gentle cycle.',
+    createdBy: 'demo-sleepy',
+  },
+  {
+    id: 'demo-dugnad-oil-bench',
+    title: 'Oil the garden bench',
+    description:
+      'Brush off the bench under the apple tree and rub a thin coat of oil into the seat and back.',
+    createdBy: 'demo-happy',
+  },
+  {
+    id: 'demo-dugnad-cellar-traps',
+    title: 'Check the cellar mousetraps',
+    description:
+      'Go over the traps in the cellar and under the kitchen bench. Wear gloves.',
+    createdBy: 'demo-sneezy',
+  },
+  {
+    id: 'demo-dugnad-feed-birds',
+    title: 'Scatter seed for the birds',
+    description:
+      'Scatter seed and breadcrumbs on the sill and the garden stump for the forest birds each morning.',
+    createdBy: 'demo-snow-white',
+  },
+  {
+    id: 'demo-dugnad-guest-book',
+    title: 'Set out a new guest book',
+    description:
+      'The old guest book is full. Set out the new one by the door and move the old one to the shelf.',
+    createdBy: 'demo-doc',
+  },
+  {
+    id: 'demo-dugnad-wash-windows',
+    title: 'Wash the cottage windows',
+    description:
+      'Wash the big parlour windows until they shine, so the dwarves can spot the lantern light on their way home.',
+    createdBy: 'demo-happy',
   },
 ];
 
@@ -549,8 +814,9 @@ async function loadCottage(db: DB): Promise<void> {
 }
 
 async function loadUsers(db: DB): Promise<void> {
-  const passwordHash = await hashPassword(DEMO_PASSWORD);
   for (const u of DEMO_USERS) {
+    // Each account has its own password (see DEMO_ACCOUNT_PASSWORDS).
+    const passwordHash = await hashPassword(demoPasswordFor(u.email));
     await db
       .insert(users)
       .values({
@@ -567,8 +833,8 @@ async function loadUsers(db: DB): Promise<void> {
         notifyEnabled: true,
         firstLoginCompletedAt: Math.floor(Date.now() / 1000),
       })
-      // Refresh the password on re-run so a changed DEMO_PASSWORD applies to
-      // already-seeded demo accounts; everything else is left untouched.
+      // Refresh the password on re-run so changed demo passwords apply to
+      // already-seeded accounts; everything else is left untouched.
       .onConflictDoUpdate({ target: users.id, set: { passwordHash } })
       .run();
   }
@@ -734,9 +1000,8 @@ async function main() {
     console.log('[demo] sign in with any of:');
     for (const u of DEMO_USERS) {
       const role = u.isAdmin ? ' (admin)' : u.isManager ? ' (manager)' : '';
-      console.log(`         ${u.email}${role}`);
+      console.log(`         ${u.email}  /  ${demoPasswordFor(u.email)}${role}`);
     }
-    console.log(`[demo] password for all: ${DEMO_PASSWORD}`);
   } finally {
     await platform.dispose();
   }

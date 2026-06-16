@@ -66,6 +66,9 @@
   --destructive: var(--color-room-red);
   --destructive-foreground: oklch(0.99 0 0);
   --radius: 0.625rem;
+  /* Sticky app-header height. Shared so the header and anything that must clear
+     it (e.g. the toaster offset) stay in lockstep. */
+  --app-header-height: 3.5rem;
 }
 
 .dark {

@@ -188,12 +188,13 @@ password: password
 ```
 
 `DEMO=true` is a cache-only Cloudflare demo mode. It is off by default. In demo
-mode the app seeds a clean fictional cottage in Worker cache, resets it every
+mode the app seeds a clean fictional cottage in Worker cache on Cloudflare, or
+in a process-local serialized cache during local `bun run dev`, resets it every
 hour, disables magic-link/password-reset/email-invite delivery, and shows Sonner
 toasts when demo mode is active and before the hourly reset. Shareable invite
-links still create cache-backed users. Demo data is runtime Worker cache data;
-the app route tree is rendered dynamically so builds do not prerender against a
-database or cache snapshot.
+links still create cache-backed users. Demo data is runtime cache data; the app
+route tree is rendered dynamically so builds do not prerender against a database
+or cache snapshot.
 
 ## Required environment variables
 

@@ -204,7 +204,13 @@ const STATE_KEY_BY_TABLE = new Map(
 
 interface ExecutionResult {
   rows: DriverRow[];
+  rawRows?: unknown[][];
   changes: number;
+}
+
+interface ProjectedRow {
+  row: DriverRow;
+  values: unknown[];
 }
 
 class DemoD1PreparedStatement implements D1PreparedStatement {
@@ -247,7 +253,9 @@ class DemoD1PreparedStatement implements D1PreparedStatement {
     options?: { columnNames?: boolean },
   ): Promise<T[] | [string[], ...T[]]> {
     const result = await executeStatement(this.sql, this.params, this.state);
-    const rows = result.rows.map((row) => Object.values(row) as T);
+    const rows = (result.rawRows ?? result.rows.map((row) => Object.values(row))).map(
+      (row) => row as T,
+    );
     if (!options?.columnNames) return rows;
     const columnNames = Object.keys(result.rows[0] ?? {});
     return [columnNames, ...rows] as [string[], ...T[]];
@@ -443,7 +451,7 @@ function executeSelect(state: DemoState, sql: string, params: unknown[]): Execut
   }
 
   return {
-    rows: contexts.map((context) => projectSelectRow(selectPart, context, aliasTables)),
+    ...projectSelectResult(selectPart, contexts, aliasTables),
     changes: 0,
   };
 }
@@ -537,7 +545,7 @@ function executeInsert(state: DemoState, sql: string, params: unknown[]): Execut
   }
 
   return {
-    rows: projectReturningRows(sql, table, insertedOrUpdated),
+    ...projectReturningResult(sql, table, insertedOrUpdated),
     changes,
   };
 }
@@ -570,9 +578,13 @@ function executeUpdate(state: DemoState, sql: string, params: unknown[]): Execut
   }
 
   return {
-    rows: updateParts.returningPart
-      ? projectSelectRows(updateParts.returningPart, table, changed)
-      : [],
+    ...(updateParts.returningPart
+      ? projectSelectResult(
+          updateParts.returningPart,
+          changed.map((row) => ({ __tables: { [table]: table }, [table]: row })),
+          new Map([[table, table]]),
+        )
+      : { rows: [], rawRows: [] }),
     changes: changed.length,
   };
 }
@@ -857,28 +869,46 @@ function buildPredicate(sql: string, startParamIndex: number): {
   throw unsupportedSql(trimmed);
 }
 
-function projectSelectRow(
+function projectSelectItemRow(
   selectPart: string,
   context: RowContext,
   aliasTables: Map<string, string>,
-): DriverRow {
+): ProjectedRow {
   const row: DriverRow = {};
+  const values: unknown[] = [];
   if (selectPart.trim() === '*') {
     for (const [alias, value] of Object.entries(context)) {
       if (alias === '__tables') continue;
       const table = aliasTables.get(alias);
       if (!table || !value) continue;
-      Object.assign(row, toDriverRow(table, value));
+      const driverRow = toDriverRow(table, value);
+      Object.assign(row, driverRow);
+      values.push(...Object.values(driverRow));
     }
-    return row;
+    return { row, values };
   }
 
   for (const item of splitTopLevel(selectPart, ',')) {
     const parsed = parseSelectItem(item);
     const value = resolveValue(parsed.expression, context, []);
     row[parsed.alias] = value;
+    values.push(value);
   }
-  return row;
+  return { row, values };
+}
+
+function projectSelectResult(
+  selectPart: string,
+  contexts: RowContext[],
+  aliasTables: Map<string, string>,
+): Pick<ExecutionResult, 'rows' | 'rawRows'> {
+  const projected = contexts.map((context) =>
+    projectSelectItemRow(selectPart, context, aliasTables),
+  );
+  return {
+    rows: projected.map((item) => item.row),
+    rawRows: projected.map((item) => item.values),
+  };
 }
 
 function parseSelectItem(item: string): { expression: string; alias: string } {
@@ -895,16 +925,17 @@ function parseSelectItem(item: string): { expression: string; alias: string } {
   };
 }
 
-function projectReturningRows(sql: string, table: string, rows: DemoRow[]): DriverRow[] {
+function projectReturningResult(
+  sql: string,
+  table: string,
+  rows: DemoRow[],
+): Pick<ExecutionResult, 'rows' | 'rawRows'> {
   const returning = extractReturning(sql);
-  if (!returning) return [];
-  return projectSelectRows(returning, table, rows);
-}
-
-function projectSelectRows(selectPart: string, table: string, rows: DemoRow[]): DriverRow[] {
-  const aliasTables = new Map<string, string>([[table, table]]);
-  return rows.map((row) =>
-    projectSelectRow(selectPart, { [table]: row }, aliasTables),
+  if (!returning) return { rows: [], rawRows: [] };
+  return projectSelectResult(
+    returning,
+    rows.map((row) => ({ __tables: { [table]: table }, [table]: row })),
+    new Map([[table, table]]),
   );
 }
 

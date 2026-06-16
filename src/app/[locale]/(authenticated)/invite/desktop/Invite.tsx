@@ -378,10 +378,14 @@ function ListSection({
               {(i.email || isActive) && (
                 <div className="flex items-center gap-2">
                   {i.email ? (
-                    <Badge className={`w-fit max-w-full ${IDENTITY_BADGE}`}>
-                      <Mail className="size-4 shrink-0" />
-                      <span className="min-w-0 truncate">{i.email}</span>
-                    </Badge>
+                    <a href={`mailto:${i.email}`} className="inline-flex min-w-0 max-w-full">
+                      <Badge
+                        className={`w-fit max-w-full ${IDENTITY_BADGE} transition-colors hover:bg-[color-mix(in_oklch,var(--muted),var(--foreground)_10%)] hover:text-[var(--foreground)]`}
+                      >
+                        <Mail className="size-4 shrink-0" />
+                        <span className="min-w-0 truncate">{i.email}</span>
+                      </Badge>
+                    </a>
                   ) : (
                     <Badge className={`min-w-0 flex-1 font-mono ${IDENTITY_BADGE}`}>
                       <LinkIcon className="size-4 shrink-0" />

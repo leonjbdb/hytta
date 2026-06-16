@@ -73,7 +73,7 @@ export async function Header() {
     <header className="sticky top-0 z-40 w-full border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
       {/* A touch wider than the page content (max-w-5xl) so the header sits
           with slightly less margin on the left and right on desktop. */}
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
+      <div className="mx-auto flex h-[var(--app-header-height)] max-w-6xl items-center gap-4 px-4">
         <Link
           href={userPresent ? '/dashboard' : '/login'}
           className="font-semibold tracking-tight"

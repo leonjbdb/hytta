@@ -158,7 +158,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
        * signed-in flow that bypassed that gate (or a stale verificationToken)
        * would still be rejected here.
        */
-      async signIn({ user }) {
+      async signIn({ user, email }) {
+        // The email (magic-link) provider runs this callback TWICE: first when
+        // the link is REQUESTED (`email.verificationRequest === true`), then
+        // again when the link is clicked. Returning false at the request stage
+        // makes `signIn` throw, which the login action would surface as an
+        // error — leaking whether the address is a member. So allow the request
+        // stage (the provider's `sendVerificationRequest` silently sends nothing
+        // for unknown emails) and only enforce membership at verification, where
+        // a non-member could never arrive anyway since no link was ever sent.
+        if (email?.verificationRequest) return true;
         if (!user.email) return false;
         const row = (await db
           .select({ id: users.id })

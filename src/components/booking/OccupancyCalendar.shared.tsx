@@ -476,9 +476,12 @@ export function CustomDayButton(props: DayButtonProps) {
   const iso = toISODate(day.date);
   const info = byDay.get(iso);
   const isToday = Boolean(modifiers?.today);
-  // Past/disabled days dim their number + marks only — NOT the cell — so the
-  // concave green "ear" (a cell background) and the hover pill keep full opacity.
-  const isDisabled = Boolean(modifiers?.disabled);
+  // Days that have already passed dim their number + marks only — NOT the cell —
+  // so the concave green "ear" and hover pill keep full opacity. Keyed off the
+  // date, not `modifiers.disabled`, so past days fade even on calendars that allow
+  // selecting them (e.g. the dashboard, disablePast=false), exactly like the
+  // booking page's disabled past days.
+  const isPast = iso < toISODate(startOfToday());
   const isFullyBooked = fullyBooked.has(iso);
   const occupiedRooms = info ? rooms.filter((r) => info.roomIds.includes(r.id)) : [];
   const tooltipGroups = info
@@ -527,7 +530,7 @@ export function CustomDayButton(props: DayButtonProps) {
           'relative z-10 leading-none',
           isToday && 'font-semibold',
           isFullyBooked && 'opacity-60',
-          isDisabled && 'opacity-30',
+          isPast && 'opacity-30',
         )}
       >
         {day.date.getDate()}
@@ -567,7 +570,7 @@ export function CustomDayButton(props: DayButtonProps) {
         </span>
       )}
       {hasMarks && (
-        <span className={cn('relative z-10', isFullyBooked && 'opacity-60', isDisabled && 'opacity-30')}>
+        <span className={cn('relative z-10', isFullyBooked && 'opacity-60', isPast && 'opacity-30')}>
           {showCottageGlyph ? (
             <FullCottageShape size={cottageSize} />
           ) : (
