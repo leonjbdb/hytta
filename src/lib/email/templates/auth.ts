@@ -25,6 +25,15 @@ interface LocaleCopy {
   resetValid: (when: string) => string;
   resetFooter: string;
   resetCta: string;
+  emailChangeHeading: string;
+  emailChangeAction: (cottage: string) => string;
+  emailChangeValid: (when: string) => string;
+  emailChangeFooter: string;
+  emailChangeCta: string;
+  emailChangedNoticeHeading: string;
+  emailChangedNoticeBody: (email: string) => string;
+  emailChangedNoticeFooter: string;
+  emailChangedNoticeCta: string;
 }
 
 const COPY: Record<Locale, LocaleCopy> = {
@@ -47,6 +56,19 @@ const COPY: Record<Locale, LocaleCopy> = {
     resetFooter:
       'Hvis du ikke ba om dette kan du ignorere e-posten — passordet ditt er uendret.',
     resetCta: 'Sett nytt passord',
+    emailChangeHeading: 'Bekreft ny e-postadresse',
+    emailChangeAction: (cottage) =>
+      `Trykk under for å bekrefte denne adressen som ny innloggings-e-post for ${cottage}-kontoen din.`,
+    emailChangeValid: (when) => `Lenken er gyldig til ${when}.`,
+    emailChangeFooter:
+      'Hvis du ikke ba om dette kan du ignorere e-posten — adressen din er uendret.',
+    emailChangeCta: 'Bekreft e-post',
+    emailChangedNoticeHeading: 'Innloggings-e-post endret',
+    emailChangedNoticeBody: (email) =>
+      `Innloggings-e-posten for kontoen din ble endret til ${email}.`,
+    emailChangedNoticeFooter:
+      'Var det ikke du som gjorde dette? Kontakt en hytteadmin med en gang — noen kan ha tilgang til kontoen din.',
+    emailChangedNoticeCta: 'Åpne innstillinger',
   },
   'en-GB': {
     tabLabel: 'English',
@@ -67,6 +89,19 @@ const COPY: Record<Locale, LocaleCopy> = {
     resetFooter:
       "If you didn't request this you can ignore this email — your password is unchanged.",
     resetCta: 'Set new password',
+    emailChangeHeading: 'Confirm your new email',
+    emailChangeAction: (cottage) =>
+      `Click below to confirm this address as the new sign-in email for your ${cottage} account.`,
+    emailChangeValid: (when) => `The link is valid until ${when}.`,
+    emailChangeFooter:
+      "If you didn't request this you can ignore this email — your address is unchanged.",
+    emailChangeCta: 'Confirm email',
+    emailChangedNoticeHeading: 'Sign-in email changed',
+    emailChangedNoticeBody: (email) =>
+      `The sign-in email for your account was changed to ${email}.`,
+    emailChangedNoticeFooter:
+      "Didn't make this change? Contact a cottage admin right away — someone may have access to your account.",
+    emailChangedNoticeCta: 'Open settings',
   },
 };
 
@@ -77,6 +112,8 @@ const SUBJECTS = {
   magicLink: (cottage: string) => `Sign in to ${cottage}`,
   invite: (cottage: string) => `You're invited to ${cottage}`,
   reset: 'Reset your password',
+  emailChange: (cottage: string) => `Confirm your new email for ${cottage}`,
+  emailChangedNotice: (cottage: string) => `Your ${cottage} sign-in email was changed`,
 } as const;
 
 export function magicLinkEmail(
@@ -161,5 +198,74 @@ export function resetPasswordEmail(
     subject: SUBJECTS.reset,
     html: shell(sections, url, primary),
     text: shellText(sections, url, primary),
+  };
+}
+
+/** Confirmation link sent to the NEW address a member wants to switch to. */
+export function emailChangeEmail(
+  url: string,
+  primary: Locale,
+  expiresAt: Date,
+  cottageName: string,
+): RenderedEmail {
+  const sections: SectionContent[] = LOCALES.map((l) => {
+    const c = COPY[l];
+    return {
+      locale: l,
+      tabLabel: c.tabLabel,
+      headline: c.emailChangeHeading,
+      paragraphs: [
+        c.emailChangeAction(cottageName),
+        c.emailChangeValid(formatExpiry(expiresAt, l)),
+      ],
+      cta: c.emailChangeCta,
+      footer: c.emailChangeFooter,
+    };
+  });
+  return {
+    subject: SUBJECTS.emailChange(cottageName),
+    html: shell(sections, url, primary),
+    text: shellText(sections, url, primary),
+  };
+}
+
+/**
+ * Heads-up sent to the OLD address once an email change is confirmed, so a
+ * silent takeover (a hijacked session swapping the login email) can't go
+ * unnoticed by the real owner. The CTA points at Settings.
+ */
+export function emailChangedNoticeEmail(
+  newEmail: string,
+  settingsUrl: string,
+  primary: Locale,
+  cottageName: string,
+): RenderedEmail {
+  const safe = `<strong>${escapeHtml(newEmail)}</strong>`;
+  const htmlSections: SectionContent[] = LOCALES.map((l) => {
+    const c = COPY[l];
+    return {
+      locale: l,
+      tabLabel: c.tabLabel,
+      headline: c.emailChangedNoticeHeading,
+      paragraphs: [c.emailChangedNoticeBody(safe)],
+      cta: c.emailChangedNoticeCta,
+      footer: c.emailChangedNoticeFooter,
+    };
+  });
+  const textSections: SectionContent[] = LOCALES.map((l) => {
+    const c = COPY[l];
+    return {
+      locale: l,
+      tabLabel: c.tabLabel,
+      headline: c.emailChangedNoticeHeading,
+      paragraphs: [c.emailChangedNoticeBody(newEmail)],
+      cta: c.emailChangedNoticeCta,
+      footer: c.emailChangedNoticeFooter,
+    };
+  });
+  return {
+    subject: SUBJECTS.emailChangedNotice(cottageName),
+    html: shell(htmlSections, settingsUrl, primary),
+    text: shellText(textSections, settingsUrl, primary),
   };
 }

@@ -2,6 +2,8 @@ import { sendMail } from './transport';
 import {
   bookingRequestEmail,
   bookingStatusEmail,
+  emailChangeEmail,
+  emailChangedNoticeEmail,
   inviteEmail,
   magicLinkEmail,
   resetPasswordEmail,
@@ -52,6 +54,25 @@ export const mailer = {
       to,
       fromName: cottage,
       ...resetPasswordEmail(url, locale, expiresAt, cottage),
+    });
+  },
+  /** Confirmation link to the NEW address the member wants to switch to. */
+  async sendEmailChange(to: string, url: string, locale: Locale, expiresAt: Date) {
+    const cottage = await cottageNameOrApp();
+    return sendMail({
+      to,
+      fromName: cottage,
+      ...emailChangeEmail(url, locale, expiresAt, cottage),
+    });
+  },
+  /** Heads-up to the OLD address once an email change is confirmed. */
+  async sendEmailChangedNotice(to: string, newEmail: string, locale: Locale) {
+    const cottage = await cottageNameOrApp();
+    const origin = await requestOrigin();
+    return sendMail({
+      to,
+      fromName: cottage,
+      ...emailChangedNoticeEmail(newEmail, `${origin}/settings`, locale, cottage),
     });
   },
   /** Booking approved / rejected / cancelled — to the booker. */

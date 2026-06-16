@@ -59,6 +59,8 @@ export function Dashboard({
     setSelectedDate(undefined);
     if (filterBeforeDate !== null) setFilter(filterBeforeDate);
     setFilterBeforeDate(null);
+    // Clearing the day filter restores each card's pre-selection open/closed state.
+    setBulkExpand('none');
   }, [filterBeforeDate]);
 
   // Picking a day reveals every booking on it — switch to "All" so other
@@ -74,6 +76,10 @@ export function Dashboard({
       if (!selectedDate) setFilterBeforeDate(filter);
       setSelectedDate(next);
       setFilter('all');
+      // Expand the bookings on the picked day. Snapshots the prior state on the
+      // first pick (none → expanded), so clearing restores it; picking another day
+      // keeps it expanded (that day's cards mount open, the old day's drop out).
+      setBulkExpand('expanded');
     },
     [clearDate, filter, selectedDate],
   );
@@ -401,8 +407,7 @@ function BookingGroupCard({
             </span>
           </span>
         </button>
-        {allowCancel &&
-          (canModify || (canDelete && (g.rows.length > 1 || !isViewerBooker))) && (
+        {allowCancel && (canModify || canDelete) && (
             <div className="mt-1 flex flex-wrap gap-2 pl-6">
               {canModify && (
                 <Link
@@ -413,12 +418,10 @@ function BookingGroupCard({
                   {t('edit')}
                 </Link>
               )}
-              {/* Whole-booking cancel: multi-person bookings, plus any booking an
-                  admin/manager is acting on (not their own) — so the entire
-                  stay can be cancelled even when it's one person. */}
-              {canDelete && (g.rows.length > 1 || !isViewerBooker) && (
-                <CancelBookingButton bookingId={g.bookingId} />
-              )}
+              {/* Whole-booking cancel for anyone who can delete it (the booker, or
+                  an admin/manager acting on someone else's) — including one-person
+                  stays. The row's redundant "Cancel my stay" is hidden below. */}
+              {canDelete && <CancelBookingButton bookingId={g.bookingId} />}
             </div>
           )}
       </div>
@@ -454,7 +457,11 @@ function BookingGroupCard({
                     isAdmin={!!r.participantIsAdmin}
                     isManager={!!r.participantIsManager}
                   />
-                  {canCancel && <CancelRowButton id={r.rowId} own={isYou} />}
+                  {/* "Cancel my stay" only when not redundant with the whole-booking
+                      cancel above (multi-row, or one the viewer can't delete entirely). */}
+                  {canCancel && (g.rows.length > 1 || !canDelete) && (
+                    <CancelRowButton id={r.rowId} own={isYou} />
+                  )}
                 </div>
               </li>
             );

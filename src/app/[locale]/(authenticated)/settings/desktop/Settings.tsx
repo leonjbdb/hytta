@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { changePassword, updateName } from '@/server/actions/user';
 import { NotificationsForm } from '../NotificationsForm';
+import { EmailForm } from '../EmailForm';
 import { DeleteAccountForm } from '../DeleteAccountForm';
 import type { SettingsProps } from '../shared';
 
@@ -17,6 +18,8 @@ export function Settings({
   firstName,
   lastName,
   email,
+  pendingEmail,
+  isDemo,
   hasPassword,
   isAdmin,
   isManager,
@@ -32,6 +35,7 @@ export function Settings({
         <p className="text-sm text-[var(--muted-foreground)]">{email}</p>
       </header>
       <NameForm initialFirstName={firstName} initialLastName={lastName} />
+      <EmailForm currentEmail={email} pendingEmail={pendingEmail} isDemo={isDemo} />
       <NotificationsForm
         initialEnabled={notifyEnabled}
         initialBooking={notifyBooking}

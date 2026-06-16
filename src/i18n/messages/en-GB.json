@@ -102,7 +102,15 @@
     "resetDoneTitle": "Password Updated",
     "resetDoneBody": "You can now sign in with your new password.",
     "resetInvalidTitle": "Reset Link Invalid",
-    "resetInvalidBody": "This reset link has expired or already been used. Request a new one to continue."
+    "resetInvalidBody": "This reset link has expired or already been used. Request a new one to continue.",
+    "confirmEmailTitle": "Confirm Your New Email",
+    "confirmEmailSubtitle": "Confirm {email} as the sign-in email for your account.",
+    "confirmEmailCta": "Confirm email",
+    "confirmEmailDoneTitle": "Email Updated",
+    "confirmEmailDoneBody": "You can now sign in with {email}.",
+    "confirmEmailInvalidTitle": "Confirmation Link Invalid",
+    "confirmEmailInvalidBody": "This confirmation link has expired or has already been used. Request the change again from Settings.",
+    "confirmEmailSettingsCta": "Go to settings"
   },
   "Book": {
     "title": "New Booking",
@@ -176,7 +184,7 @@
     "bookedBy": "Booked by {name}",
     "cancelRow": "Cancel my stay",
     "cancelRowOther": "Cancel stay",
-    "cancelBooking": "Cancel whole booking",
+    "cancelBooking": "Cancel booking",
     "edit": "Edit",
     "confirmCancelRow": "Cancel this stay?",
     "confirmCancelBooking": "Cancel the entire booking for everyone?",
@@ -289,7 +297,15 @@
     "deleteAccountHeading": "Delete Account",
     "deleteAccountHint": "Permanently delete your account, along with your bookings and group memberships. This cannot be undone.",
     "deleteAccountCta": "Delete account",
-    "confirmDeleteAccount": "Delete your account? This permanently removes your account, bookings and group memberships."
+    "confirmDeleteAccount": "Delete your account? This permanently removes your account, bookings and group memberships.",
+    "emailHeading": "Email Address",
+    "emailNewLabel": "New email address",
+    "emailNewPlaceholder": "you@example.com",
+    "emailHelp": "We'll send a confirmation link to the new address. Your email only changes once you open that link.",
+    "emailCta": "Change email",
+    "emailRequested": "Confirmation link sent — check the new inbox.",
+    "emailPending": "Waiting for confirmation at {email}. Open the link we sent to that inbox to finish the change.",
+    "emailDemoLocked": "Changing your email is disabled in the demo."
   },
   "Dugnad": {
     "title": "Volunteer Tasks",

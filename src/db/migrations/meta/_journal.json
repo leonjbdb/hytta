@@ -15,6 +15,13 @@
       "when": 1781606872445,
       "tag": "0001_premium_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781646651534,
+      "tag": "0002_faithful_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

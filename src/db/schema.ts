@@ -195,6 +195,32 @@ export const passwordResetTokens = sqliteTable(
   (t) => [index('password_reset_token_user_idx').on(t.userId)],
 );
 
+/**
+ * Email-change confirmation tokens. A member requests a new address from
+ * Settings; the raw token is emailed to that NEW address and the account's
+ * `email` only swaps once the link is clicked, proving the member controls
+ * the inbox. Like `passwordResetTokens` the token is stored as a SHA-256 hash
+ * (not raw) so a DB read can't confirm a pending change for the residual TTL.
+ * `newEmail` is held server-side — never in the URL — so the recipient can't
+ * substitute a different address than the one they verified.
+ */
+export const emailChangeTokens = sqliteTable(
+  'email_change_token',
+  {
+    id: text('id').primaryKey().$defaultFn(cuid),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The address the member wants to move to; applied verbatim on confirm. */
+    newEmail: text('new_email').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at').notNull().$defaultFn(now),
+  },
+  (t) => [index('email_change_token_user_idx').on(t.userId)],
+);
+
 /* ----------------------------------------------------------------------- *
  * Instance settings — a single row holding cottage-wide configuration the
  * operator sets on first run and tunes from the admin page: the cottage's

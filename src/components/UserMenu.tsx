@@ -68,7 +68,10 @@ export function UserMenu({ name, fullName, isInvitee, signOutAction }: Props) {
         <div
           role="menu"
           className={cn(
-            'absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg',
+            // Top padding only: the last item (Sign out) then reaches the menu's
+            // bottom edge, so its red hover fills to the rounded corner instead
+            // of leaving a white strip below it.
+            'absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--card)] pt-1 shadow-lg',
           )}
         >
           <div
@@ -94,7 +97,9 @@ export function UserMenu({ name, fullName, isInvitee, signOutAction }: Props) {
             </button>
           ))}
 
-          <div className="my-1 h-px bg-[var(--border)]" />
+          {/* No vertical margin: the items above and below sit flush against
+              the divider, so their hover fills right up to it with no white gap. */}
+          <div className="h-px bg-[var(--border)]" />
 
           {isInvitee && (
             <Link

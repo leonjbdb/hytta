@@ -53,6 +53,8 @@ export function Dashboard({
     setSelectedDate(undefined);
     if (filterBeforeDate !== null) setFilter(filterBeforeDate);
     setFilterBeforeDate(null);
+    // Clearing the day filter restores each card's pre-selection open/closed state.
+    setBulkExpand('none');
   }, [filterBeforeDate]);
 
   // Picking a day reveals every booking on it — switch to "All" so other
@@ -68,6 +70,10 @@ export function Dashboard({
       if (!selectedDate) setFilterBeforeDate(filter);
       setSelectedDate(next);
       setFilter('all');
+      // Expand the bookings on the picked day. Snapshots the prior state on the
+      // first pick (none → expanded), so clearing restores it; picking another day
+      // keeps it expanded (that day's cards mount open, the old day's drop out).
+      setBulkExpand('expanded');
     },
     [clearDate, filter, selectedDate],
   );
@@ -411,11 +417,11 @@ function BookingGroupCard({
               {t('edit')}
             </Link>
           )}
-          {/* Whole-booking cancel: for multi-person bookings, and for any
-              booking an admin/manager is acting on (i.e. not their own), so
-              elevated users can always remove the entire stay — even a
-              one-person one — not just a single row. */}
-          {allowCancel && canDelete && (g.rows.length > 1 || !isViewerBooker) && (
+          {/* Whole-booking cancel for anyone who can delete it (the booker, or an
+              admin/manager acting on someone else's) — including one-person stays.
+              On a single-row booking it's the only cancel shown; the row's
+              redundant "Cancel my stay" is hidden below. */}
+          {allowCancel && canDelete && (
             <CancelBookingButton bookingId={g.bookingId} />
           )}
         </div>
@@ -450,7 +456,10 @@ function BookingGroupCard({
                   isAdmin={!!r.participantIsAdmin}
                   isManager={!!r.participantIsManager}
                 />
-                {canCancel && (
+                {/* A row's own "Cancel my stay" only when it isn't redundant with
+                    the whole-booking cancel above — a multi-row booking, or one the
+                    viewer can't delete entirely (so this is their only way out). */}
+                {canCancel && (g.rows.length > 1 || !canDelete) && (
                   <span className="ml-auto">
                     <CancelRowButton id={r.rowId} own={isYou} />
                   </span>

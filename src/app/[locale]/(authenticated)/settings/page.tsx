@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth/config';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
+import { getPendingEmailChange } from '@/lib/auth/email-change';
+import { isDemoMode } from '@/lib/demo-mode';
 import { pickVariant } from '@/lib/device/pick';
 import { Settings as SettingsDesktop } from './desktop/Settings';
 import { Settings as SettingsMobile } from './mobile/Settings';
@@ -36,6 +38,11 @@ export default async function SettingsPage({
 
   if (!me) redirect('/login');
 
+  // Demo mode never sends real email, so there's no pending change to surface
+  // and the form is locked anyway — skip the lookup.
+  const demo = isDemoMode();
+  const pendingEmail = demo ? null : await getPendingEmailChange(db, me.id);
+
   return pickVariant({
     desktop: SettingsDesktop,
     mobile: SettingsMobile,
@@ -45,6 +52,8 @@ export default async function SettingsPage({
       firstName: me.firstName ?? me.name ?? '',
       lastName: me.lastName ?? '',
       email: me.email,
+      pendingEmail,
+      isDemo: demo,
       hasPassword: Boolean(me.passwordHash),
       isAdmin: Boolean(session.user.isAdmin),
       isManager: Boolean(session.user.isManager),

@@ -634,9 +634,20 @@ export function CustomDayButton(props: DayButtonProps) {
           ))}
         </span>
       )}
-      {hasMarks && (
-        <span className={cn('relative z-10', isFullyBooked && 'opacity-60', isPast && 'opacity-30')}>
-          {showCottageGlyph ? (
+      {/* Always reserve the marks row at a constant height (the cottage glyph is
+          the tallest mark) — even on days with nothing booked — so the date
+          number sits at the same vertical offset in every cell and the numbers
+          line up across the whole grid. */}
+      <span
+        className={cn(
+          'relative z-10 flex items-center justify-center',
+          isFullyBooked && 'opacity-60',
+          isPast && 'opacity-30',
+        )}
+        style={{ height: cottageSize }}
+      >
+        {hasMarks &&
+          (showCottageGlyph ? (
             <FullCottageShape size={cottageSize} />
           ) : (
             <span
@@ -647,9 +658,8 @@ export function CustomDayButton(props: DayButtonProps) {
                 <RoomIcon key={r.id} name={r.icon} size={iconSize} color={r.color} />
               ))}
             </span>
-          )}
-        </span>
-      )}
+          ))}
+      </span>
       {/* Requested-but-unapproved day: yellow dot, top-right, distinct from the booked treatment. */}
       {isPending && (
         <span

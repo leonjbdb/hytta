@@ -102,7 +102,15 @@
     "resetDoneTitle": "Passordet er oppdatert",
     "resetDoneBody": "Du kan nå logge inn med det nye passordet.",
     "resetInvalidTitle": "Tilbakestillingslenken er ugyldig",
-    "resetInvalidBody": "Lenken har utløpt eller er allerede brukt. Be om en ny for å fortsette."
+    "resetInvalidBody": "Lenken har utløpt eller er allerede brukt. Be om en ny for å fortsette.",
+    "confirmEmailTitle": "Bekreft ny e-postadresse",
+    "confirmEmailSubtitle": "Bekreft {email} som innloggings-e-post for kontoen din.",
+    "confirmEmailCta": "Bekreft e-post",
+    "confirmEmailDoneTitle": "E-posten er oppdatert",
+    "confirmEmailDoneBody": "Du kan nå logge inn med {email}.",
+    "confirmEmailInvalidTitle": "Bekreftelseslenken er ugyldig",
+    "confirmEmailInvalidBody": "Denne bekreftelseslenken har utløpt eller er allerede brukt. Be om endringen på nytt fra Innstillinger.",
+    "confirmEmailSettingsCta": "Gå til innstillinger"
   },
   "Book": {
     "title": "Ny reservasjon",
@@ -176,7 +184,7 @@
     "bookedBy": "Bestilt av {name}",
     "cancelRow": "Avlys oppholdet mitt",
     "cancelRowOther": "Avlys opphold",
-    "cancelBooking": "Avlys hele reservasjonen",
+    "cancelBooking": "Avlys reservasjonen",
     "edit": "Rediger",
     "confirmCancelRow": "Avlyse dette oppholdet?",
     "confirmCancelBooking": "Avlyse hele reservasjonen for alle?",
@@ -289,7 +297,15 @@
     "deleteAccountHeading": "Slett konto",
     "deleteAccountHint": "Slett kontoen din permanent, sammen med reservasjonene og gruppemedlemskapene dine. Dette kan ikke angres.",
     "deleteAccountCta": "Slett konto",
-    "confirmDeleteAccount": "Slette kontoen din? Dette fjerner kontoen, reservasjonene og gruppemedlemskapene dine permanent."
+    "confirmDeleteAccount": "Slette kontoen din? Dette fjerner kontoen, reservasjonene og gruppemedlemskapene dine permanent.",
+    "emailHeading": "E-postadresse",
+    "emailNewLabel": "Ny e-postadresse",
+    "emailNewPlaceholder": "deg@eksempel.no",
+    "emailHelp": "Vi sender en bekreftelseslenke til den nye adressen. E-posten din endres først når du åpner lenken.",
+    "emailCta": "Endre e-post",
+    "emailRequested": "Bekreftelseslenke sendt — sjekk den nye innboksen.",
+    "emailPending": "Venter på bekreftelse på {email}. Åpne lenken vi sendte til den innboksen for å fullføre endringen.",
+    "emailDemoLocked": "Endring av e-post er deaktivert i demoen."
   },
   "Dugnad": {
     "title": "Dugnad",

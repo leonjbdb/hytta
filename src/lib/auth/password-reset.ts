@@ -1,22 +1,16 @@
-import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { passwordResetTokens } from '@/db/schema';
 import type { DB } from '@/db/client';
+import { generateRawToken, hashToken } from '@/lib/auth/tokens';
+
+// Re-exported so callers (and tests) that treat hashing as part of the
+// password-reset surface keep working after the helper moved to `tokens.ts`.
+export { hashToken } from '@/lib/auth/tokens';
 
 /** Tokens live 1 h; tightens the residual blast radius if a link leaks. */
 export const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 const nowMs = () => Date.now();
-
-/** 256-bit URL-safe token returned to the user; never stored verbatim. */
-function generateRawToken(): string {
-  return randomBytes(32).toString('base64url');
-}
-
-/** SHA-256 hex of the raw token. The hash is what we persist. */
-export function hashToken(raw: string): string {
-  return createHash('sha256').update(raw).digest('hex');
-}
 
 export interface MintedReset {
   /** Raw token to embed in the reset URL. The DB only stores its hash. */
