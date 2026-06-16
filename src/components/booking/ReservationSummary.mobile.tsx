@@ -28,7 +28,7 @@ export function ReservationSummary(props: ReservationSummaryProps) {
   if (!target) return null;
 
   return createPortal(
-    <div className="border-t border-[var(--border)] bg-[var(--card)]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl backdrop-blur">
+    <div className="border-t border-[var(--border)] bg-[var(--hytta-calendar-bg)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl backdrop-blur">
       <ReservationSummaryBody {...props} />
     </div>,
     target,

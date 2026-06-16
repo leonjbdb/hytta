@@ -57,6 +57,7 @@
   --muted-foreground: var(--color-clay-600);
   --card: oklch(1 0 0);
   --card-foreground: var(--color-clay-900);
+  --hytta-calendar-bg: color-mix(in oklch, var(--card), var(--color-moss-100) 8%);
   --border: var(--color-clay-200);
   --input: var(--color-clay-200);
   --ring: var(--color-moss-500);
@@ -135,9 +136,11 @@
     --rdp-accent-background-color: color-mix(in oklch, var(--primary), transparent 85%);
     --rdp-day_button-border-radius: 0.5rem;
     --rdp-selected-border: 2px solid var(--primary);
-    --hytta-calendar-bg: color-mix(in oklch, var(--card), var(--color-moss-100) 8%);
     --hytta-range-edge-fade: 1.25rem;
-    --hytta-range-concave-corner-size: var(--rdp-day_button-border-radius);
+    /* Match the day button's `rounded-md`. NB: not `var(--rdp-day_button-border-radius)`
+       — react-day-picker's unlayered style.css defaults that to 100%, which beats
+       this @layer-base override and would size the concave square to the whole cell. */
+    --hytta-range-concave-corner-size: 0.375rem;
   }
 
 }
@@ -175,15 +178,28 @@
 .rdp-root [role="gridcell"]:has(+ .hytta-range-start-continues-below) > button,
 .rdp-root .hytta-range-end-continues-above + [role="gridcell"] > button {
   background: var(--hytta-calendar-bg);
+  /* Containing block + paint context for the hover pill below. */
+  position: relative;
 }
 
-/* Restore the normal hover — the unlayered rule above otherwise beats the
-   layered Tailwind `hover:bg-*` utility, so these cells looked inert. */
-.hytta-range-concave-before-start button:hover,
-.hytta-range-concave-after-end button:hover,
-.rdp-root [role="gridcell"]:has(+ .hytta-range-start-continues-below) > button:hover,
-.rdp-root .hytta-range-end-continues-above + [role="gridcell"] > button:hover {
+/* Hover highlight for the elbow cells. Rounding the button itself would expose
+   the neighbouring green through the corner, so instead we paint a fully rounded
+   muted pill ON TOP of the button's opaque calendar-bg fill. The pill's rounded
+   corners reveal that fill (not the green behind the cell), so the highlight
+   looks like every other day's pill — while the green "ear" still shows at the
+   one corner the pill's matching radius leaves open. Sits above the fill, below
+   the date number (which is z-10). */
+.hytta-range-concave-before-start button:hover::after,
+.hytta-range-concave-after-end button:hover::after,
+.rdp-root [role="gridcell"]:has(+ .hytta-range-start-continues-below) > button:hover::after,
+.rdp-root .hytta-range-end-continues-above + [role="gridcell"] > button:hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 0.375rem;
   background: var(--muted);
+  pointer-events: none;
 }
 
 .hytta-range-continues-after-week button::after,
@@ -193,6 +209,9 @@
   position: absolute;
   top: 0;
   bottom: 0;
+  /* Sits just above the button's green fill, but the cell content (date number,
+     room icons, dots) is lifted to z-10 in CustomDayButton — so the fade only
+     dims the range area at the row edge, never the glyphs on top of it. */
   z-index: 1;
   width: var(--hytta-range-edge-fade);
 }

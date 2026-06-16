@@ -12,7 +12,7 @@ import type { ReservationSummaryProps } from './ReservationSummary.shared';
 export function ReservationSummary(props: ReservationSummaryProps) {
   return (
     <div className="sticky bottom-4 z-30 w-full">
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--card)]/95 p-4 shadow-lg backdrop-blur">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--hytta-calendar-bg)] p-4 shadow-lg backdrop-blur">
         <ReservationSummaryBody {...props} />
       </div>
     </div>

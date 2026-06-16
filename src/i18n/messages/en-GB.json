@@ -159,8 +159,7 @@
     "bedSingle": "Single bed",
     "bedSeatAdd": "Add",
     "bedTakenMultiple": "Booked by multiple people",
-    "dragToBed": "Drag to a bed",
-    "roomBedsHint": "Drop a person onto a bed. A double sleeps two but is reserved whole — pick it and the spare side stays yours."
+    "dragToBed": "Drag to a bed"
   },
   "Dashboard": {
     "title": "Cottage Calendar",

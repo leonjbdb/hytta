@@ -1,6 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { db } from '@/db/client';
-import type { AvailabilityTarget, BedOccupancy, DateRange, OccupantRef } from './types';
+import type {
+  AvailabilityTarget,
+  BedOccupancy,
+  DateRange,
+  OccupantRef,
+  PendingRef,
+} from './types';
 
 interface RawAvailabilityRow {
   kind: 'FULL_COTTAGE' | 'SLOT_ROOM';
@@ -28,19 +34,34 @@ interface RawPendingNameRow {
   room_id: string | null;
   bed_id: string | null;
   display_name: string;
+  start_date: string;
+  end_date: string;
 }
 
-interface PendingNames {
-  /** Names behind pending whole-cottage requests. */
-  fullCottage: string[];
-  /** Room/slot-level pending requester names, keyed by room id. */
-  roomLevel: Map<string, string[]>;
-  /** Bed-level pending requester names, keyed by bed id. */
-  bed: Map<string, string[]>;
+interface PendingParticipants {
+  /** Pending whole-cottage requesters. */
+  fullCottage: PendingRef[];
+  /** Room/slot-level pending requesters, keyed by room id. */
+  roomLevel: Map<string, PendingRef[]>;
+  /** Bed-level pending requesters, keyed by bed id. */
+  bed: Map<string, PendingRef[]>;
 }
 
-function uniq(...lists: string[][]): string[] {
-  return [...new Set(lists.flat())];
+/** Merge pending-requester lists, deduped by name + exact dates so the same
+ *  request surfaced at both bed- and room-level isn't listed twice, while two
+ *  distinct stays (even by the same person) are both kept. */
+function uniqRefs(...lists: PendingRef[][]): PendingRef[] {
+  const out: PendingRef[] = [];
+  for (const ref of lists.flat()) {
+    if (
+      !out.some(
+        (x) => x.name === ref.name && x.startDate === ref.startDate && x.endDate === ref.endDate,
+      )
+    ) {
+      out.push(ref);
+    }
+  }
+  return out;
 }
 
 /**
@@ -48,7 +69,10 @@ function uniq(...lists: string[][]): string[] {
  * what they targeted. Used to label the "awaiting approval" dots so a booker
  * can see who else is in the queue for a slot before requesting it too.
  */
-async function getPendingNames(range: DateRange, excludeBookingId?: string): Promise<PendingNames> {
+async function getPendingNames(
+  range: DateRange,
+  excludeBookingId?: string,
+): Promise<PendingParticipants> {
   const notEdited = excludeBookingId
     ? sql`AND (r.booking_id IS NULL OR r.booking_id != ${excludeBookingId})`
     : sql``;
@@ -57,7 +81,9 @@ async function getPendingNames(range: DateRange, excludeBookingId?: string): Pro
       r.target_kind AS target_kind,
       r.room_id AS room_id,
       r.bed_id AS bed_id,
-      COALESCE(u.name, u.email, r.guest_name, 'Someone') AS display_name
+      COALESCE(u.name, u.email, r.guest_name, 'Someone') AS display_name,
+      r.start_date AS start_date,
+      r.end_date AS end_date
     FROM reservation r
     LEFT JOIN user u ON u.id = r.user_id
     WHERE r.status = 'PENDING'
@@ -66,21 +92,35 @@ async function getPendingNames(range: DateRange, excludeBookingId?: string): Pro
       ${notEdited}
   `);
 
-  const fullCottage: string[] = [];
-  const roomLevel = new Map<string, string[]>();
-  const bed = new Map<string, string[]>();
-  const push = (map: Map<string, string[]>, key: string, name: string) => {
+  const fullCottage: PendingRef[] = [];
+  const roomLevel = new Map<string, PendingRef[]>();
+  const bed = new Map<string, PendingRef[]>();
+  const push = (target: PendingRef[], ref: PendingRef) => {
+    if (
+      !target.some(
+        (x) => x.name === ref.name && x.startDate === ref.startDate && x.endDate === ref.endDate,
+      )
+    ) {
+      target.push(ref);
+    }
+  };
+  const pushKeyed = (map: Map<string, PendingRef[]>, key: string, ref: PendingRef) => {
     const list = map.get(key) ?? [];
-    if (!list.includes(name)) list.push(name);
+    push(list, ref);
     map.set(key, list);
   };
   for (const row of rows) {
+    const ref: PendingRef = {
+      name: row.display_name,
+      startDate: row.start_date,
+      endDate: row.end_date,
+    };
     if (row.target_kind === 'FULL_COTTAGE') {
-      if (!fullCottage.includes(row.display_name)) fullCottage.push(row.display_name);
+      push(fullCottage, ref);
     } else if (row.target_kind === 'BED' && row.bed_id) {
-      push(bed, row.bed_id, row.display_name);
+      pushKeyed(bed, row.bed_id, ref);
     } else if (row.room_id) {
-      push(roomLevel, row.room_id, row.display_name);
+      pushKeyed(roomLevel, row.room_id, ref);
     }
   }
   return { fullCottage, roomLevel, bed };
@@ -96,7 +136,7 @@ async function getPendingNames(range: DateRange, excludeBookingId?: string): Pro
 async function getBedOccupancy(
   range: DateRange,
   excludeBookingId: string | undefined,
-  pendingNames: PendingNames,
+  pendingParticipants: PendingParticipants,
 ): Promise<Map<string, BedOccupancy[]>> {
   // When editing, the booking's own rows must not count against itself.
   const notEdited = excludeBookingId
@@ -218,9 +258,9 @@ async function getBedOccupancy(
       takenBy: occupantsByBed.get(row.bed_id) ?? [],
       pending: Number(row.pending),
       // A bed's dot names whoever requested the bed itself or its whole room.
-      pendingNames: uniq(
-        pendingNames.bed.get(row.bed_id) ?? [],
-        pendingNames.roomLevel.get(row.room_id) ?? [],
+      pendingParticipants: uniqRefs(
+        pendingParticipants.bed.get(row.bed_id) ?? [],
+        pendingParticipants.roomLevel.get(row.room_id) ?? [],
       ),
     });
     byRoom.set(row.room_id, list);
@@ -412,8 +452,8 @@ export async function getAvailability(
     FROM room_capacity rc
   `);
 
-  const pendingNames = await getPendingNames(range, excludeBookingId);
-  const bedsByRoom = await getBedOccupancy(range, excludeBookingId, pendingNames);
+  const pendingParticipants = await getPendingNames(range, excludeBookingId);
+  const bedsByRoom = await getBedOccupancy(range, excludeBookingId, pendingParticipants);
   const roomOccupants = await getRoomOccupants(range, excludeBookingId);
   const roomPeak = await getRoomPeakOccupancy(range, excludeBookingId);
 
@@ -423,7 +463,7 @@ export async function getAvailability(
         kind: 'FULL_COTTAGE',
         available: row.full_blocked === 0,
         pending: Number(row.full_pending),
-        pendingNames: pendingNames.fullCottage,
+        pendingParticipants: pendingParticipants.fullCottage,
       };
     }
     const roomId = row.room_id!;
@@ -443,9 +483,9 @@ export async function getAvailability(
       pending: Number(row.pending),
       // Room dot names everyone pending in the room: room-level requests plus
       // every bed-level request inside it.
-      pendingNames: uniq(
-        pendingNames.roomLevel.get(roomId) ?? [],
-        ...beds.map((b) => pendingNames.bed.get(b.bedId) ?? []),
+      pendingParticipants: uniqRefs(
+        pendingParticipants.roomLevel.get(roomId) ?? [],
+        ...beds.map((b) => pendingParticipants.bed.get(b.bedId) ?? []),
       ),
       beds,
     };

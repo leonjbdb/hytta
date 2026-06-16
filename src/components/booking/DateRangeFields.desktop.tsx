@@ -52,7 +52,7 @@ export function DateRangeFields({ value, onChange, onMonthChange, className }: D
   return (
     <div
       className={cn(
-        'flex flex-col gap-3 rounded-md border border-[var(--border)] bg-[var(--card)]/70 p-3 text-sm',
+        'flex flex-col gap-3 rounded-md border border-[var(--border)] bg-[var(--hytta-calendar-bg)] p-3 text-sm',
         className,
       )}
     >

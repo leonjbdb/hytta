@@ -159,8 +159,7 @@
     "bedSingle": "Enkeltseng",
     "bedSeatAdd": "Legg til",
     "bedTakenMultiple": "Booket av flere personer",
-    "dragToBed": "Dra til en seng",
-    "roomBedsHint": "Slipp en person på en seng. En dobbeltseng har plass til to, men reserveres hel — velg den, og den ledige siden forblir din."
+    "dragToBed": "Dra til en seng"
   },
   "Dashboard": {
     "title": "Hytteoversikt",

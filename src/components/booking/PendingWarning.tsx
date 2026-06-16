@@ -24,9 +24,9 @@ export function PendingWarning({
     (a): a is Extract<AvailabilityTarget, { kind: 'FULL_COTTAGE' }> =>
       a.kind === 'FULL_COTTAGE',
   );
-  const cottageNames = cottage?.pendingNames ?? [];
+  const cottageNames = cottage?.pendingParticipants.map((p) => p.name) ?? [];
   const roomsPending = availability.some(
-    (a) => a.kind === 'SLOT_ROOM' && a.pendingNames.length > 0,
+    (a) => a.kind === 'SLOT_ROOM' && a.pendingParticipants.length > 0,
   );
 
   if (cottageNames.length === 0 && !roomsPending) return null;

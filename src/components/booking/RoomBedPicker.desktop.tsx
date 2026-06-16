@@ -15,7 +15,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
-import type { AvailabilityTarget, BedOccupancy, OccupantRef } from '@/lib/booking/types';
+import type { AvailabilityTarget, BedOccupancy, OccupantRef, PendingRef } from '@/lib/booking/types';
 import { roomLabel } from '@/lib/booking/room-label';
 import { formatStay } from '@/lib/booking/format-stay';
 import { FullCottageShape, RoomIcon } from './RoomIcon';
@@ -115,15 +115,28 @@ function fullCottagePending(av: AvailabilityTarget[]): number {
   return total;
 }
 
-/** Everyone with a pending request anywhere in the cottage (whole-cottage card). */
-function fullCottagePendingNames(av: AvailabilityTarget[]): string[] {
-  const set = new Set<string>();
-  for (const a of av) {
-    if (a.kind === 'FULL_COTTAGE' || a.kind === 'SLOT_ROOM') {
-      a.pendingNames.forEach((n) => set.add(n));
+/** Merge pending-requester lists, deduped by name + exact dates. */
+function uniqPending(...lists: PendingRef[][]): PendingRef[] {
+  const out: PendingRef[] = [];
+  for (const ref of lists.flat()) {
+    if (
+      !out.some(
+        (x) => x.name === ref.name && x.startDate === ref.startDate && x.endDate === ref.endDate,
+      )
+    ) {
+      out.push(ref);
     }
   }
-  return [...set];
+  return out;
+}
+
+/** Everyone with a pending request anywhere in the cottage (whole-cottage card). */
+function fullCottagePendingParticipants(av: AvailabilityTarget[]): PendingRef[] {
+  return uniqPending(
+    ...av
+      .filter((a) => a.kind === 'FULL_COTTAGE' || a.kind === 'SLOT_ROOM')
+      .map((a) => a.pendingParticipants),
+  );
 }
 
 function getRoomInfo(av: AvailabilityTarget[], roomId: string) {
@@ -133,7 +146,7 @@ function getRoomInfo(av: AvailabilityTarget[], roomId: string) {
       capacity: null as number | null,
       taken: 0,
       pending: 0,
-      pendingNames: [] as string[],
+      pendingParticipants: [] as PendingRef[],
       takenBy: [] as OccupantRef[],
     };
   }
@@ -141,7 +154,7 @@ function getRoomInfo(av: AvailabilityTarget[], roomId: string) {
     capacity: t.capacity,
     taken: t.taken,
     pending: t.pending,
-    pendingNames: t.pendingNames,
+    pendingParticipants: t.pendingParticipants,
     takenBy: t.takenBy,
   };
 }
@@ -321,7 +334,7 @@ export function RoomBedPicker({
 
   const fullAvailable = availability.length === 0 || isFullAvailable(availability);
   const fullPending = fullCottagePending(availability);
-  const fullPendingNames = fullCottagePendingNames(availability);
+  const fullPendingParticipants = fullCottagePendingParticipants(availability);
   const availableModes = availableBookingModes(availability);
 
   React.useEffect(() => {
@@ -607,7 +620,7 @@ export function RoomBedPicker({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-semibold">{t('fullCottage')}</h2>
-                <PendingDot names={fullPendingNames} />
+                <PendingDot participants={fullPendingParticipants} />
               </div>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                 {fullAvailable ? t('fullCottageDescription') : t('fullCottageBlocked')}
@@ -678,7 +691,7 @@ export function RoomBedPicker({
                 key={room.id}
                 icon={<RoomIcon name={room.icon} size={14} color={room.color} />}
                 label={roomLabel(room, locale)}
-                pendingNames={info.pendingNames}
+                pendingParticipants={info.pendingParticipants}
                 meta={
                   capacity == null
                     ? t('slotsUsedUnlimited', { count: list.length + taken })
@@ -828,20 +841,31 @@ function ParticipantList({
           />
         ),
       )}
-      {canAdd && (
-        <button
-          type="button"
-          onClick={addOne}
-          className={cn(
-            'rounded-md border border-dashed border-[var(--border)] bg-transparent text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]',
-            // Capacity: a full-width clickable slot box (one border, like a seat
-            // minus the bed's outer box). Otherwise a compact "add" pill.
-            boxed ? 'flex w-full items-center px-3 py-2' : 'self-start px-2 py-1',
-          )}
-        >
-          <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
-        </button>
-      )}
+      {canAdd &&
+        (boxed && participants.length === 0 ? (
+          <button
+            type="button"
+            onClick={addOne}
+            className="flex w-full items-center rounded-lg border border-[var(--border)] p-2 text-left transition-colors hover:bg-[var(--muted)]/50"
+          >
+            <span className="pointer-events-none rounded-md border border-dashed border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
+              <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={addOne}
+            className={cn(
+              'rounded-md border border-dashed border-[var(--border)] bg-transparent text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]',
+              // Capacity: a full-width clickable slot box (one border, like a seat
+              // minus the bed's outer box). Otherwise a compact "add" pill.
+              boxed ? 'flex w-full items-center px-3 py-2' : 'self-start px-2 py-1',
+            )}
+          >
+            <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
+          </button>
+        ))}
     </div>
   );
 }
@@ -1023,7 +1047,7 @@ function RoomCard({
   checked,
   roomId,
   acceptsDrops,
-  pendingNames,
+  pendingParticipants,
   children,
 }: {
   icon: React.ReactNode;
@@ -1033,7 +1057,7 @@ function RoomCard({
   checked: boolean;
   roomId: string;
   acceptsDrops: boolean;
-  pendingNames: string[];
+  pendingParticipants: PendingRef[];
   children?: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -1048,7 +1072,7 @@ function RoomCard({
         'flex flex-col gap-3 rounded-xl border bg-[var(--card)] p-4 transition-colors',
         checked
           ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/30'
-          : pendingNames.length > 0
+          : pendingParticipants.length > 0
             ? 'border-dashed border-[var(--color-partial)]/70 bg-[color-mix(in_oklch,var(--card),var(--color-partial)_6%)]'
             : 'border-[var(--border)]',
         !available && 'opacity-60',
@@ -1060,7 +1084,7 @@ function RoomCard({
           {icon}
         </span>
         <span className="text-sm font-medium">{label}</span>
-        <PendingDot names={pendingNames} />
+        <PendingDot participants={pendingParticipants} />
         {meta && (
           <span className="ml-auto text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
             {meta}
@@ -1102,7 +1126,7 @@ function BedRoomCard({
 }) {
   const t = useTranslations('Book');
   const takenMap = new Map(occupancy.map((b) => [b.bedId, b] as const));
-  const roomPendingNames = [...new Set(occupancy.flatMap((b) => b.pendingNames))];
+  const roomPendingParticipants = uniqPending(...occupancy.map((b) => b.pendingParticipants));
   // Doubles first, then singles, each group by label — a stable, readable order.
   const orderedBeds = [...beds].sort((a, b) =>
     a.kind === b.kind ? a.label.localeCompare(b.label) : a.kind === 'DOUBLE' ? -1 : 1,
@@ -1126,14 +1150,13 @@ function BedRoomCard({
           {icon}
         </span>
         <span className="text-sm font-medium">{label}</span>
-        <PendingDot names={roomPendingNames} />
+        <PendingDot participants={roomPendingParticipants} />
         <span className="ml-auto text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
           {/* Peak concurrent people: others' peak + your picks (all span the
               range). Back-to-back stays don't double-count. */}
           {t('slotsUsed', { used: assigned + othersPeak, total: totalSeats })}
         </span>
       </div>
-      <p className="text-xs text-[var(--muted-foreground)]">{t('roomBedsHint')}</p>
       <div className="flex flex-col gap-3">
         {orderedBeds.map((bed) => (
           <BedBox
@@ -1143,7 +1166,7 @@ function BedRoomCard({
             capacity={takenMap.get(bed.id)?.capacity ?? bedCapacity(bed.kind)}
             takenByOthers={takenMap.get(bed.id)?.takenByOthers ?? 0}
             takenBy={takenMap.get(bed.id)?.takenBy ?? []}
-            pendingNames={takenMap.get(bed.id)?.pendingNames ?? []}
+            pendingParticipants={takenMap.get(bed.id)?.pendingParticipants ?? []}
             occupants={indexed.filter((x) => x.p.bedId === bed.id)}
             users={users}
             onAdd={() => onAddToBed(roomId, bed.id)}
@@ -1162,7 +1185,7 @@ function BedBox({
   capacity,
   takenByOthers,
   takenBy,
-  pendingNames,
+  pendingParticipants,
   occupants,
   users,
   onAdd,
@@ -1174,7 +1197,7 @@ function BedBox({
   capacity: number;
   takenByOthers: number;
   takenBy: OccupantRef[];
-  pendingNames: string[];
+  pendingParticipants: PendingRef[];
   occupants: { p: ParticipantPick; i: number }[];
   users: PickerUser[];
   onAdd: () => void;
@@ -1222,7 +1245,7 @@ function BedBox({
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-[var(--muted-foreground)]">{bedName}</span>
-        <PendingDot names={pendingNames} />
+        <PendingDot participants={pendingParticipants} />
       </div>
       {empty ? (
         <button

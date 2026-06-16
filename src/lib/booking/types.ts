@@ -72,6 +72,15 @@ export interface OccupantRef {
   endDate: string;
 }
 
+/** A requester awaiting approval, with the dates they asked for — lets the
+ *  "awaiting approval" tooltip show who AND when. */
+export interface PendingRef {
+  name: string;
+  /** The requested range (ISO `YYYY-MM-DD`). */
+  startDate: string;
+  endDate: string;
+}
+
 /**
  * Per-bed occupancy for BEDS-mode rooms. A bed is a small capacity unit: a
  * double sleeps two, a single one, and the seats can be shared across separate
@@ -91,8 +100,9 @@ export interface BedOccupancy {
   takenBy: OccupantRef[];
   /** PENDING requests touching this bed — shown distinctly, do **not** block. */
   pending: number;
-  /** Display names behind those pending requests (bed- and room-level). */
-  pendingNames: string[];
+  /** Pending requesters touching this bed (bed- and room-level), with the dates
+   *  they asked for — powers the "awaiting approval" tooltip. */
+  pendingParticipants: PendingRef[];
 }
 
 export type AvailabilityTarget =
@@ -102,8 +112,8 @@ export type AvailabilityTarget =
       available: boolean;
       /** Pending requests overlapping — informational only, doesn't block. */
       pending: number;
-      /** Display names behind pending whole-cottage requests. */
-      pendingNames: string[];
+      /** Pending whole-cottage requesters, with the dates they asked for. */
+      pendingParticipants: PendingRef[];
     }
   | {
       kind: 'SLOT_ROOM';
@@ -121,9 +131,9 @@ export type AvailabilityTarget =
       takenBy: OccupantRef[];
       /** Slots requested but PENDING — shown distinctly, do **not** block. */
       pending: number;
-      /** Display names behind pending requests touching this room (room- or
-       *  bed-level). Powers the room's "awaiting approval" dot tooltip. */
-      pendingNames: string[];
+      /** Pending requesters touching this room (room- or bed-level), with the
+       *  dates they asked for. Powers the room's "awaiting approval" tooltip. */
+      pendingParticipants: PendingRef[];
       /** Per-bed occupancy for BEDS-mode rooms; empty for SLOTS-mode rooms. */
       beds: BedOccupancy[];
     };

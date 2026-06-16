@@ -80,7 +80,7 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
 
   return (
     <OccupancyContext.Provider value={occupancyContext}>
-      <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[color-mix(in_oklch,var(--card),var(--color-moss-100)_8%)] p-3">
+      <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--hytta-calendar-bg)] p-3">
         <CalendarHeader
           month={month}
           onMonthChange={setMonth}

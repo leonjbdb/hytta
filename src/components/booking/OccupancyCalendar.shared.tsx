@@ -151,10 +151,11 @@ export const RANGE_CONTINUATION_CLASSNAMES = {
   rangeContinuesBeforeWeek: 'hytta-range-continues-before-week',
   rangeStartContinuesBelow: 'hytta-range-start-continues-below [&_button]:!rounded-bl-none',
   rangeEndContinuesAbove: 'hytta-range-end-continues-above [&_button]:!rounded-tr-none',
-  // Concave cells round the button only at the corner that meets the range, so
-  // the green "ear" appears on that one corner and the other three sit flush
-  // against their neighbours (no stray notches). before-start → bottom-right;
-  // after-end → top-left.
+  // Concave cells square every corner except the one carrying the green "ear".
+  // These cells sit inside the selection's elbow, so with border-collapse any
+  // rounded corner exposes a neighbouring green cell behind the inset — we keep
+  // them flush at rest and on hover (hover just darkens the same shape). The ear
+  // stays rounded: before-start → BR, after-end → TL.
   rangeConcaveBeforeStart:
     'hytta-range-concave-before-start [&_button]:!rounded-tl-none [&_button]:!rounded-tr-none [&_button]:!rounded-bl-none',
   rangeConcaveAfterEnd:
@@ -517,7 +518,7 @@ export function CustomDayButton(props: DayButtonProps) {
         </span>
       )}
       {hasMarks && (
-        <span className={cn(isFullyBooked && 'opacity-60')}>
+        <span className={cn('relative z-10', isFullyBooked && 'opacity-60')}>
           {showCottageGlyph ? (
             <FullCottageShape size={cottageSize} />
           ) : (
@@ -538,13 +539,13 @@ export function CustomDayButton(props: DayButtonProps) {
           title={pendingLabel}
           aria-label={pendingLabel}
           role="img"
-          className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-amber-400 ring-1 ring-[var(--card)]"
+          className="absolute right-0.5 top-0.5 z-10 size-1.5 rounded-full bg-amber-400 ring-1 ring-[var(--card)]"
         />
       )}
       {isToday && (
         <span
           aria-hidden
-          className="absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-current"
+          className="absolute bottom-1 left-1/2 z-10 size-1 -translate-x-1/2 rounded-full bg-current"
         />
       )}
     </button>
