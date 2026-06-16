@@ -88,7 +88,8 @@ function loadEnv(): Env {
       .join('\n');
     throw new Error(
       `\n[hytta] Invalid environment configuration:\n${issues}\n\n` +
-        `Copy .env.example to .env.local and fill every required variable.\n`,
+        `Local dev: copy .env.example to .env.local and fill every required variable.\n` +
+        `Cloudflare: set the same names as Worker Variables and Secrets.\n`,
     );
   }
   return parsed.data;

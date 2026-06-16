@@ -1171,7 +1171,7 @@ function BedBox({
   // Held entirely by others (no seat for me) → just their badge(s), greyed.
   const onlyOthers = hasOthers && occupants.length === 0 && freeForMe === 0;
 
-  const othersBadge = (
+  const othersBadge = hasOthers ? (
     // Muted sub-row naming who holds the bed. One holder → badge (+ when on
     // hover). Several distinct people across the range → a "multiple people"
     // label whose tooltip lists who and when. No `opacity` so tooltips stay crisp.
@@ -1188,7 +1188,7 @@ function BedBox({
         />
       )}
     </div>
-  );
+  ) : null;
 
   return (
     <div className="flex flex-col gap-1">

@@ -980,7 +980,7 @@ function BedBox({
   const empty = !hasOthers && occupants.length === 0 && freeForMe > 0;
   const onlyOthers = hasOthers && occupants.length === 0 && freeForMe === 0;
 
-  const othersBadge = (
+  const othersBadge = hasOthers ? (
     <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--muted)]/50 px-1.5 py-1">
       {new Set(takenBy.map((o) => o.name)).size > 1 ? (
         <BookedByMultiple occupants={takenBy} />
@@ -994,7 +994,7 @@ function BedBox({
         />
       )}
     </div>
-  );
+  ) : null;
 
   return (
     <div className="flex flex-col gap-1">

@@ -185,8 +185,10 @@ password: demohytta2026
 
 ## Required environment variables
 
-Copy `.env.example` to `.env.local` and fill every value. The app refuses
-to boot otherwise.
+For local development, copy `.env.example` to `.env.local` and fill every
+value. Cloudflare has two variable locations: Workers Builds variables are only
+available while the build/deploy command runs, while Worker runtime variables
+are available to the deployed Worker at request time.
 
 | Var                   | Source / notes                                                |
 | --------------------- | ------------------------------------------------------------- |
@@ -202,6 +204,36 @@ to boot otherwise.
 `HYTTA_D1_DATABASE_ID` is not committed to Wrangler config. Remote scripts read
 it from `.env.local` (or the shell environment), generate ignored
 `wrangler.local.jsonc` files, and pass those files to Wrangler/OpenNext.
+
+On the Cloudflare `hytta` Worker, set these runtime values under the Worker's
+own Settings > Variables and Secrets:
+
+| Type     | Name             | Value / notes                                  |
+| -------- | ---------------- | ---------------------------------------------- |
+| Secret   | `AUTH_SECRET`    | `openssl rand -base64 32`                      |
+| Variable | `AUTH_URL`       | Production origin, e.g. `https://bekkeholt.no` |
+| Variable | `EMAIL_FROM`     | Verified sender, e.g. `Hytta <noreply@...>`   |
+| Variable | `EMAIL_PROVIDER` | `resend`                                       |
+| Secret   | `RESEND_API_KEY` | Resend key, if real email delivery is enabled  |
+
+In Workers Builds for the `hytta` app project, set these build/deploy values:
+
+| Type     | Name                  | Required | Why                                                |
+| -------- | --------------------- | -------- | -------------------------------------------------- |
+| Text     | `HYTTA_D1_DATABASE_ID` | yes      | Generates account-local Wrangler D1 config         |
+| Secret   | `AUTH_SECRET`         | yes      | Next build imports strict env-validated auth code  |
+| Text     | `AUTH_URL`            | yes      | Next build imports strict env-validated auth code  |
+| Text     | `EMAIL_FROM`          | yes      | Next build imports strict env-validated email code |
+| Text     | `EMAIL_PROVIDER`      | no       | Defaults to `resend`; set it for clarity           |
+
+In Workers Builds for the `hytta-booking-do` project, only
+`HYTTA_D1_DATABASE_ID` is required. The deployed Worker uses the `DB` binding at
+runtime, so `HYTTA_D1_DATABASE_ID` does not need to be a runtime variable.
+
+If the Cloudflare dashboard suggests updating `wrangler.jsonc` after adding
+runtime variables, do not commit your real deployment values to tracked config.
+This repo keeps account-specific values in `.env.local`, Workers Builds
+variables, and Worker runtime variables instead.
 
 ### Cloudflare Workers deployment
 
