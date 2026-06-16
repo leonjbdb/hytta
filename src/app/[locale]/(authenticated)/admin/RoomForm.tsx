@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -177,10 +178,8 @@ export function RoomFormFields({
  * `revalidatePath` instead and can ignore it).
  */
 export function NewRoomForm({
-  onError,
   onCreated,
 }: {
-  onError: (msg: string | null) => void;
   onCreated?: (room: CreatedRoom) => void;
 }) {
   const t = useTranslations('Admin');
@@ -206,7 +205,6 @@ export function NewRoomForm({
   };
 
   const submit = () => {
-    onError(null);
     startTransition(async () => {
       const r = await createRoom({
         nameNb,
@@ -218,7 +216,7 @@ export function NewRoomForm({
         beds: mode === 'BEDS' ? newBeds.map((b) => ({ kind: b.kind })) : undefined,
       });
       if (!r.ok) {
-        onError(r.message);
+        toast.error(r.message);
         return;
       }
       onCreated?.({ nameNb, nameEn, icon, color });

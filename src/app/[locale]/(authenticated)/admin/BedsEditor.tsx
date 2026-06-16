@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { addBed, removeBed } from '@/server/actions/admin';
 import { BedRows, type BedItem } from './BedRows';
@@ -15,11 +16,9 @@ import type { AdminBed } from './shared';
 export function BedsEditor({
   roomId,
   beds,
-  onError,
 }: {
   roomId: string;
   beds: AdminBed[];
-  onError: (msg: string | null) => void;
 }) {
   const t = useTranslations('Admin');
   const confirm = useConfirm();
@@ -29,20 +28,18 @@ export function BedsEditor({
   const items: BedItem[] = beds.map((b) => ({ id: b.id, kind: b.kind }));
 
   const add = (kind: 'SINGLE' | 'DOUBLE') => {
-    onError(null);
     startAdd(async () => {
       const r = await addBed(roomId, kind);
-      if (!r.ok) onError(r.message);
+      if (!r.ok) toast.error(r.message);
     });
   };
 
   const remove = async (bedId: string) => {
     if (!(await confirm({ message: t('confirmRemoveBed'), destructive: true }))) return;
-    onError(null);
     setPendingId(bedId);
     const r = await removeBed(bedId);
     setPendingId(null);
-    if (!r.ok) onError(r.message);
+    if (!r.ok) toast.error(r.message);
   };
 
   return (

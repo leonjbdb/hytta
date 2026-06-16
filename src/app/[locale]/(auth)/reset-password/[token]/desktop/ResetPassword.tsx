@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import {
   Card,
   CardContent,
@@ -19,7 +20,6 @@ import { resetPassword } from '@/server/actions/auth';
 export function ResetPassword({ token }: { token: string }) {
   const t = useTranslations('Auth');
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -55,12 +55,11 @@ export function ResetPassword({ token }: { token: string }) {
           <form
             className="flex flex-col gap-3"
             action={(fd) => {
-              setError(null);
               startTransition(async () => {
                 fd.set('token', token);
                 const r = await resetPassword(fd);
                 if (!r.ok) {
-                  setError(r.message);
+                  toast.error(r.message);
                   return;
                 }
                 setDone(true);
@@ -82,11 +81,6 @@ export function ResetPassword({ token }: { token: string }) {
                 {t('passwordHelp')}
               </p>
             </div>
-            {error && (
-              <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 px-2.5 py-1.5 text-xs text-[var(--destructive)]">
-                {error}
-              </p>
-            )}
             <Button type="submit" size="lg" disabled={isPending} className="mt-1">
               {t('resetCta')}
             </Button>

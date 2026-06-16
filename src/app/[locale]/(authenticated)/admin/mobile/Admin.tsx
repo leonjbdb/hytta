@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { roomLabel } from '@/lib/booking/room-label';
 import { Loader2, Pencil, Search, Trash2, UserX, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -50,7 +51,6 @@ export function Admin({ cottageName, rooms, beds, users, adminCount, viewerId }:
 
 function RoomsSection({ rooms, beds }: { rooms: AdminRoom[]; beds: AdminBed[] }) {
   const t = useTranslations('Admin');
-  const [error, setError] = React.useState<string | null>(null);
   const [editingId, setEditingId] = React.useState<string | null>(null);
 
   return (
@@ -70,30 +70,19 @@ function RoomsSection({ rooms, beds }: { rooms: AdminRoom[]; beds: AdminBed[] })
               room={room}
               beds={beds.filter((b) => b.roomId === room.id)}
               onClose={() => setEditingId(null)}
-              onError={setError}
             />
           ) : (
             <RoomViewCard
               key={room.id}
               room={room}
               beds={beds.filter((b) => b.roomId === room.id)}
-              onEdit={() => {
-                setError(null);
-                setEditingId(room.id);
-              }}
-              onError={setError}
+              onEdit={() => setEditingId(room.id)}
             />
           ),
         )}
       </div>
 
-      {error && (
-        <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
-          {error}
-        </p>
-      )}
-
-      <NewRoomForm onError={setError} />
+      <NewRoomForm />
     </CollapsibleSection>
   );
 }
@@ -102,12 +91,10 @@ function RoomViewCard({
   room,
   beds,
   onEdit,
-  onError,
 }: {
   room: AdminRoom;
   beds: AdminBed[];
   onEdit: () => void;
-  onError: (msg: string | null) => void;
 }) {
   const t = useTranslations('Admin');
   const locale = useLocale();
@@ -158,10 +145,9 @@ function RoomViewCard({
             }))
           )
             return;
-          onError(null);
           startTransition(async () => {
             const r = await deleteRoom(room.id);
-            if (!r.ok) onError(r.message);
+            if (!r.ok) toast.error(r.message);
           });
         }}
       >
@@ -175,12 +161,10 @@ function RoomEditCard({
   room,
   beds,
   onClose,
-  onError,
 }: {
   room: AdminRoom;
   beds: AdminBed[];
   onClose: () => void;
-  onError: (msg: string | null) => void;
 }) {
   const t = useTranslations('Admin');
   const locale = useLocale();
@@ -194,7 +178,6 @@ function RoomEditCard({
   const [slotCount, setSlotCount] = React.useState<number>(room.slotCount ?? 2);
 
   const save = () => {
-    onError(null);
     startTransition(async () => {
       const r = await updateRoom({
         id: room.id,
@@ -206,7 +189,7 @@ function RoomEditCard({
         slotCount: mode === 'SLOTS' ? (unlimited ? null : slotCount) : null,
       });
       if (!r.ok) {
-        onError(r.message);
+        toast.error(r.message);
         return;
       }
       onClose();
@@ -242,9 +225,7 @@ function RoomEditCard({
         onSlotCount={setSlotCount}
       />
 
-      {mode === 'BEDS' && (
-        <BedsEditor roomId={room.id} beds={beds} onError={onError} />
-      )}
+      {mode === 'BEDS' && <BedsEditor roomId={room.id} beds={beds} />}
 
       <Button onClick={save} disabled={pending || !nameNb.trim() || !nameEn.trim()} className="self-start">
         {pending && <Loader2 className="size-4 animate-spin" />}
@@ -265,7 +246,6 @@ function UsersSection({
 }) {
   const t = useTranslations('Admin');
   const confirm = useConfirm();
-  const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState<{ id: string; role: UserRole } | null>(null);
   const [kicking, setKicking] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
@@ -283,12 +263,11 @@ function UsersSection({
   );
 
   const run = (u: AdminUser, role: UserRole, fn: () => Promise<AdminResult>) => {
-    setError(null);
     setPending({ id: u.id, role });
     (async () => {
       const r = await fn();
       setPending(null);
-      if (!r.ok) setError(r.message);
+      if (!r.ok) toast.error(r.message);
     })();
   };
   const toggleAdmin = (u: AdminUser, next: boolean) =>
@@ -307,11 +286,10 @@ function UsersSection({
       delaySeconds: 3,
     });
     if (!ok) return;
-    setError(null);
     setKicking(u.id);
     const r = await deleteUser(u.id);
     setKicking(null);
-    if (!r.ok) setError(r.message);
+    if (!r.ok) toast.error(r.message);
   };
 
   return (
@@ -395,12 +373,6 @@ function UsersSection({
           })}
         </CardContent>
       </Card>
-
-      {error && (
-        <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
-          {error}
-        </p>
-      )}
     </CollapsibleSection>
   );
 }

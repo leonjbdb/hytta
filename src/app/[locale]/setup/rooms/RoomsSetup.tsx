@@ -18,7 +18,6 @@ export function RoomsSetup({ initialHasRooms }: { initialHasRooms: boolean }) {
   const locale = useLocale();
   const router = useRouter();
   const [created, setCreated] = React.useState<CreatedRoom[]>([]);
-  const [error, setError] = React.useState<string | null>(null);
   const canFinish = initialHasRooms || created.length > 0;
 
   return (
@@ -47,13 +46,7 @@ export function RoomsSetup({ initialHasRooms }: { initialHasRooms: boolean }) {
         </Card>
       )}
 
-      <NewRoomForm onError={setError} onCreated={(r) => setCreated((c) => [...c, r])} />
-
-      {error && (
-        <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
-          {error}
-        </p>
-      )}
+      <NewRoomForm onCreated={(r) => setCreated((c) => [...c, r])} />
 
       <Button
         disabled={!canFinish}

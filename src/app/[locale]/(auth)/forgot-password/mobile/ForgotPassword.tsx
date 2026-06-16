@@ -53,11 +53,6 @@ export function ForgotPassword() {
                 required
               />
             </div>
-            {error && (
-              <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 px-2.5 py-1.5 text-xs text-[var(--destructive)]">
-                {error}
-              </p>
-            )}
             <Button type="submit" size="lg" disabled={isPending} className="mt-1">
               {t('forgotCta')}
             </Button>

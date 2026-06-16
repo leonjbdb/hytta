@@ -157,7 +157,6 @@ export function SetupForm() {
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  setError(null);
                   setStep(1);
                 }}
                 disabled={pending}
@@ -176,7 +175,6 @@ export function SetupForm() {
               {pending && <Loader2 className="size-4 animate-spin" />}
               {step === 1 ? t('next') : pending ? t('saving') : t('submit')}
             </Button>
-            {error && <span className="text-xs text-[var(--destructive)]">{error}</span>}
           </div>
         </form>
       </CardContent>

@@ -12,4 +12,14 @@ import { defineCloudflareConfig } from '@opennextjs/cloudflare';
  * the main worker is the stock `.open-next/worker.js` — no wrapper, no relaxed
  * config validation needed.
  */
-export default defineCloudflareConfig();
+const config = defineCloudflareConfig();
+
+/**
+ * Run the plain Next build, NOT the package `build` script — `build` is the
+ * Cloudflare wrapper (`scripts/cloudflare.ts build`) that invokes OpenNext,
+ * which then calls this command. Defaulting to `bun run build` would re-enter
+ * the wrapper and recurse forever, so point it at a dedicated `next build`.
+ */
+config.buildCommand = 'bun run build:next';
+
+export default config;

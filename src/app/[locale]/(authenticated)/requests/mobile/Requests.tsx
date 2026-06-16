@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { AlertTriangle, Check, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,7 +34,6 @@ export function Requests({ rows, roomCapacities }: RequestsProps) {
   const locale = useLocale();
   const confirm = useConfirm();
   const [pendingId, setPendingId] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
 
   const items = React.useMemo(
     () => buildRequestItems(groupRequests(rows), roomCapacities),
@@ -74,11 +74,10 @@ export function Requests({ rows, roomCapacities }: RequestsProps) {
     bookingId: string,
     fn: typeof approveBooking | typeof rejectBooking,
   ) => {
-    setError(null);
     setPendingId(bookingId);
     try {
       const r = await fn(bookingId);
-      if (!r.ok) setError(r.message);
+      if (!r.ok) toast.error(r.message);
     } finally {
       setPendingId(null);
     }
@@ -211,12 +210,6 @@ export function Requests({ rows, roomCapacities }: RequestsProps) {
             ),
           )}
         </div>
-      )}
-
-      {error && (
-        <p className="rounded-md border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
-          {error}
-        </p>
       )}
     </div>
   );
