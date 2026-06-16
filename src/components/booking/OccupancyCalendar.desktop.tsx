@@ -54,9 +54,8 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
       fullyBooked: fullyBookedSet,
       cellWidth: 48,
       onDayHover: ctrl.setHoverDate,
-      slideFrom: rangeShown?.from ?? null,
     }),
-    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate, rangeShown?.from],
+    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate],
   );
 
   const dayPicker =
@@ -133,9 +132,8 @@ const DESKTOP_CLASSNAMES = {
   weekday:
     'text-[var(--muted-foreground)] w-12 text-[11px] font-medium uppercase tracking-wide pb-2',
   day: 'h-12 w-12 p-0 text-center text-sm align-middle relative',
-  // The fill/border-radius transition lives in globals.css (.hytta-day-btn) so
-  // it can stagger the fill (slide) and lag the corner rounding (shape-preserving
-  // retract) — things Tailwind utilities can't express per-property.
+  // No transition: the range fill snaps instantly to whatever cell the cursor
+  // is over (and shows nothing extra when it isn't over a valid day).
   day_button:
     'inline-flex h-12 w-12 items-center justify-center rounded-md hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
   // Selected/range days keep their green on hover, just a shade darker (the

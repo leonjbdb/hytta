@@ -164,20 +164,6 @@
   --hytta-range-text: var(--foreground);
 }
 
-/* Day-cell transition.
-   - Fill + text fade over 190ms, delayed per-cell by --slide-delay (set inline
-     from the cell's distance to the range start) so an extending range slides
-     outward from the start — 17 → 18 → 19 … — rather than filling all at once.
-   - border-radius transitions with a delay LONGER than the fill fade, so a cell
-     leaving the range keeps its square middle shape the whole time it fades out
-     and only rounds back once it's already transparent (no rounded-corner pop). */
-.rdp-root .hytta-day-btn {
-  transition:
-    background-color 190ms ease-out var(--slide-delay, 0ms),
-    color 190ms ease-out var(--slide-delay, 0ms),
-    border-radius 1ms linear 210ms;
-}
-
 .hytta-range-continues-after-week button,
 .hytta-range-continues-before-week button {
   isolation: isolate;

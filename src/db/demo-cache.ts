@@ -112,14 +112,19 @@ async function deleteCachedState(generation: number): Promise<void> {
 }
 
 export async function getDemoState(): Promise<DemoState> {
-  const { generation } = getDemoResetInfo();
-  const cached = await readCachedState(generation);
-  if (cached) return cached;
+  try {
+    const { generation } = getDemoResetInfo();
+    const cached = await readCachedState(generation);
+    if (cached) return cached;
 
-  const state = await createDemoState();
-  await writeCachedState(generation, state);
-  await deleteCachedState(generation - 1);
-  return state;
+    const state = await createDemoState();
+    await writeCachedState(generation, state);
+    await deleteCachedState(generation - 1);
+    return state;
+  } catch (err) {
+    console.error('[demo][diag] getDemoState failed:', err);
+    throw err;
+  }
 }
 
 export async function setDemoState(state: DemoState): Promise<void> {
