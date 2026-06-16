@@ -15,7 +15,7 @@ import { ConfirmProvider } from '@/components/ConfirmDialog';
  *   1. Verifies the user has a valid session — redirects to `/login` if not.
  *   2. Renders the global `Header` (only signed-in users see chrome).
  *
- * This is in addition to the edge middleware (`src/proxy.ts`) so even a
+ * This is in addition to the edge middleware (`src/middleware.ts`) so even a
  * missed matcher pattern can't leak a page or its data.
  */
 export default async function AuthenticatedLayout({

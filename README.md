@@ -12,7 +12,7 @@ what users see in the header, the browser title, calendar feeds and emails.
 ## Stack
 
 - **Next.js 16** (App Router, React 19.2, Turbopack default).
-  Uses `proxy.ts` (Next 16 replacement for `middleware.ts`).
+  Uses `middleware.ts` for Cloudflare-compatible route protection and locale negotiation.
 - **TypeScript** (strict, `noUncheckedIndexedAccess`).
 - **Tailwind CSS 4.1** — CSS-first configuration via `@theme` in
   `src/app/globals.css`. OKLCH colour tokens, no `tailwind.config.ts`.
@@ -45,15 +45,14 @@ The `en-GB` content follows **Oxford spelling** — see
 fails CI if any `-ise` verb (`organise`, `realise`, …) or AmE word
 (`color`, `center`, …) leaks in, and verifies key parity with `nb-NO`.
 
-Locale routing is done by next-intl through `src/proxy.ts` (the Next.js 16
-proxy file — formerly `middleware.ts`). Navigation uses the typed
+Locale routing is done by next-intl through `src/middleware.ts`. Navigation uses the typed
 `Link` / `redirect` / `useRouter` from `src/i18n/navigation.ts`.
 
 ## Architecture (SOLID)
 
 ```
 src/
-├─ proxy.ts                       # next-intl locale negotiation (Next 16)
+├─ middleware.ts                  # auth gate + next-intl locale negotiation
 ├─ i18n/                          # routing.ts, request.ts, navigation.ts, messages/
 ├─ app/
 │  ├─ layout.tsx                  # passthrough root
@@ -150,7 +149,7 @@ bun run dev                         # http://localhost:3000
 A fresh database is **empty** — exactly what a real deployment starts with. On
 first run the app sends you to `/setup` to name the cottage and become the first
 admin, then to create rooms. `bun run demo` is only for local exploration: it
-loads an invented cottage ("Granheim"), a handful of `@example.com` members,
+loads an invented cottage ("The Dwarfs' Cottage"), a handful of `@example.com` members,
 rooms, bookings, and chores so you can click around without setting everything
 up by hand. It is never run on a deployment.
 
@@ -172,16 +171,29 @@ name has been set.
 
 ### Demo credentials
 
-After `bun run demo`, sign in at `/login/credentials` with any demo member
-(all share one password):
+After `bun run demo`, or when the deployed Worker runs with `DEMO=true`, sign
+in at `/login/credentials` with any demo member in The Dwarfs' Cottage (all
+share one password):
 
 ```
-email:    astrid@example.com   (admin + manager)
-          henrik@example.com   (member)
-          maja@example.com     (member)
-          jonas@example.com    (member)
-password: demohytta2026
+email:    snow.white@example.com   (admin + manager)
+          doc@example.com          (member)
+          grumpy@example.com       (member)
+          happy@example.com        (member)
+          sleepy@example.com       (member)
+          bashful@example.com      (member)
+          sneezy@example.com       (member)
+          dopey@example.com        (member)
+password: password
 ```
+
+`DEMO=true` is a cache-only Cloudflare demo mode. It is off by default. In demo
+mode the app seeds a clean fictional cottage in Worker cache, resets it every
+hour, disables magic-link/password-reset/email-invite delivery, and shows Sonner
+toasts when demo mode is active and before the hourly reset. Shareable invite
+links still create cache-backed users. Demo data is runtime Worker cache data;
+the app route tree is rendered dynamically so builds do not prerender against a
+database or cache snapshot.
 
 ## Required environment variables
 
@@ -192,12 +204,13 @@ are available to the deployed Worker at request time.
 
 | Var                   | Source / notes                                                |
 | --------------------- | ------------------------------------------------------------- |
-| `HYTTA_D1_DATABASE_ID` | Cloudflare D1 UUID from `wrangler d1 create hytta`           |
+| `HYTTA_D1_DATABASE_ID` | Cloudflare D1 UUID; not needed for `DEMO=true` app builds    |
 | `AUTH_SECRET`         | `openssl rand -base64 32`                                     |
 | `AUTH_URL`            | Public origin in production, e.g. `https://hytta.example.com` |
+| `DEMO`                | Optional `true`/`false`; default `false`                      |
 | `EMAIL_PROVIDER`      | `resend` for Cloudflare Workers                              |
-| `EMAIL_FROM`          | Verified sender, e.g. `Hytta <noreply@example.no>`           |
-| `RESEND_API_KEY`      | Resend API key for real email delivery                       |
+| `EMAIL_FROM`          | Verified sender, unless `DEMO=true`                          |
+| `RESEND_API_KEY`      | Resend API key when `EMAIL_PROVIDER=resend`, unless `DEMO=true` |
 | `ADMIN_EMAILS`        | Optional comma-separated admin auto-promotion list            |
 | `TEST_USER_*`         | Optional env-managed test account                            |
 
@@ -212,23 +225,26 @@ own Settings > Variables and Secrets:
 | -------- | ---------------- | ---------------------------------------------- |
 | Secret   | `AUTH_SECRET`    | `openssl rand -base64 32`                      |
 | Variable | `AUTH_URL`       | Production origin, e.g. `https://bekkeholt.no` |
-| Variable | `EMAIL_FROM`     | Verified sender, e.g. `Hytta <noreply@...>`   |
+| Variable | `DEMO`           | `true` only for a public cache-only demo       |
+| Variable | `EMAIL_FROM`     | Verified sender; omit when `DEMO=true`        |
 | Variable | `EMAIL_PROVIDER` | `resend`                                       |
-| Secret   | `RESEND_API_KEY` | Resend key, if real email delivery is enabled  |
+| Secret   | `RESEND_API_KEY` | Resend key when `EMAIL_PROVIDER=resend`; omit for `DEMO=true` |
 
 In Workers Builds for the `hytta` app project, set these build/deploy values:
 
 | Type     | Name                  | Required | Why                                                |
 | -------- | --------------------- | -------- | -------------------------------------------------- |
-| Text     | `HYTTA_D1_DATABASE_ID` | yes      | Generates account-local Wrangler D1 config         |
+| Text     | `HYTTA_D1_DATABASE_ID` | unless `DEMO=true` | Generates account-local Wrangler D1 config         |
 | Secret   | `AUTH_SECRET`         | yes      | Next build imports strict env-validated auth code  |
 | Text     | `AUTH_URL`            | yes      | Next build imports strict env-validated auth code  |
-| Text     | `EMAIL_FROM`          | yes      | Next build imports strict env-validated email code |
+| Text     | `DEMO`                | no       | `true` generates an app Worker config without D1/DO bindings |
+| Text     | `EMAIL_FROM`          | unless `DEMO=true` | Next build imports strict env-validated email code |
 | Text     | `EMAIL_PROVIDER`      | no       | Defaults to `resend`; set it for clarity           |
 
 In Workers Builds for the `hytta-booking-do` project, only
-`HYTTA_D1_DATABASE_ID` is required. The deployed Worker uses the `DB` binding at
-runtime, so `HYTTA_D1_DATABASE_ID` does not need to be a runtime variable.
+`HYTTA_D1_DATABASE_ID` is required. A `DEMO=true` app Worker does not deploy or
+bind the BookingDO worker. The deployed production Worker uses the `DB` binding
+at runtime, so `HYTTA_D1_DATABASE_ID` does not need to be a runtime variable.
 
 If the Cloudflare dashboard suggests updating `wrangler.jsonc` after adding
 runtime variables, do not commit your real deployment values to tracked config.
@@ -254,7 +270,8 @@ The app Workers Builds project must be named `hytta`, matching
 
 `bun run build` generates the account-local Wrangler config from
 `HYTTA_D1_DATABASE_ID`, then runs `opennextjs-cloudflare build`, producing
-`.open-next`.
+`.open-next`. With `DEMO=true`, it generates an app Worker config without D1 or
+BookingDO bindings instead.
 
 Enable build caching for the `hytta` Workers Builds project in Cloudflare:
 Settings > Build > Build cache > Enable. Cloudflare caches Bun's package cache
@@ -266,9 +283,11 @@ worker. If `.open-next` is missing, deploy fails instead of building.
 Cloudflare Workers do not have a long-running runtime start command after
 deployment.
 
-Deploy the Durable Object worker separately before deploying the app Worker.
-The app deploy fails with `Cannot create binding for class in script
-'hytta-booking-do' that does not exist` until this Worker exists.
+For production mode, deploy the Durable Object worker separately before
+deploying the app Worker. A production app deploy fails with
+`Cannot create binding for class in script 'hytta-booking-do' that does not
+exist` until this Worker exists. A `DEMO=true` app-only deployment has no
+BookingDO binding and skips this requirement.
 
 Either deploy it once from your terminal with `bun run deploy:do`, or create a
 second Workers Builds project from the same GitHub repo:
@@ -280,7 +299,8 @@ second Workers Builds project from the same GitHub repo:
 | Deploy command | `bun run deploy:do`  |
 
 The `hytta-booking-do` project only needs `HYTTA_D1_DATABASE_ID` as a build
-variable. The app project's auth/email secrets stay on the `hytta` Worker.
+variable. Do not create this project for a `DEMO=true` app-only deployment. The
+app project's auth/email secrets stay on the `hytta` Worker.
 
 Do not rename the Cloudflare app project away from `hytta` unless you also
 change `wrangler.jsonc`, `workers/booking-do/wrangler.jsonc`, and the app's
@@ -294,7 +314,7 @@ early deploy where the app worker accidentally owned the Durable Object class.
 
 | Command                | What it does                                  |
 | ---------------------- | --------------------------------------------- |
-| `bun run dev`          | Next 16 dev server (Turbopack, Bun runtime)   |
+| `bun run dev`          | Next 16 dev server (Turbopack, Bun runtime); skips local D1/BookingDO when `DEMO=true` |
 | `bun run build`        | Build OpenNext Cloudflare Worker output       |
 | `bun run start`        | Next production server; not used by Workers   |
 | `bun run typecheck`    | `tsc --noEmit`                                |
@@ -303,7 +323,8 @@ early deploy where the app worker accidentally owned the Durable Object class.
 | `bun run db:generate`  | Generate a new migration from `schema.ts`     |
 | `bun run db:migrate`   | Apply migrations to the local D1              |
 | `bun run db:migrate:remote` | Apply migrations to Cloudflare D1 using `HYTTA_D1_DATABASE_ID` |
-| `bun run demo`         | Load fictional demo data (idempotent)         |
+| `bun run preview`      | Preview the built Worker locally; skips local D1/BookingDO when `DEMO=true` |
+| `bun run demo`         | Load fictional D1 demo data for non-demo local/prod-like runs; refuses when `DEMO=true` |
 | `bun run db:reset`     | Wipe local D1 + re-migrate (`--demo` to load) |
 | `bun run db:studio`    | Drizzle Studio                                |
 | `bun run deploy:do`    | Deploy only the BookingDO worker              |
@@ -314,22 +335,32 @@ early deploy where the app worker accidentally owned the Durable Object class.
 
 ## Verification checklist
 
-1. `bun install`, `bun run db:migrate`, `bun run demo`.
+For the cache-only Cloudflare demo, set `DEMO=true` in the app Worker build and
+runtime variables. Do not run `bun run demo`; that command is the older D1 demo
+loader for non-demo local/prod-like runs.
+
+1. `bun install`.
 2. `bun test` — booking + i18n test suites pass.
-3. `bun run build` — production build is clean.
-4. `bun run dev`, then in a browser:
+3. `DEMO=true bun run build` — generated app config has no D1 or BookingDO binding.
+4. Deploy/preview the app Worker with `DEMO=true`, then in a browser:
    - `/` redirects to `/nb-NO` (default locale).
-   - Sign in as `astrid@example.com` / `demohytta2026`.
-   - The demo loads upcoming bookings spanning a room, a single bed, a slot, a
-     whole-cottage week, and a guest stay — pick those dates to see rooms/beds
-     and the "whole cottage" toggle disable as expected.
+   - Sign in as `snow.white@example.com` / `password`.
+   - The demo loads relative past and upcoming bookings spanning rooms, beds,
+     slots, whole-cottage stays, guests, pending requests, and cancelled stays.
+   - Confirm no member is shown on two beds in the same date range.
    - One dugnad chore shows as completed by a member other than its creator.
-   - Try to book BLUE on `2026-05-16` — see a friendly conflict message.
+   - Create a shareable invite link, accept it as a new email, and confirm the
+     new cache-backed user can sign in without email delivery.
+   - Try an email-bound invite and confirm the GUI rejects it in demo mode.
+   - Try to book a date/area already shown as occupied — see a friendly
+     conflict message.
    - Cancel a reservation on `/reservations` — its dates open back up.
    - Switch language to **English (UK)** — page rerenders in Oxford English,
      calendar weeks still start Monday, plurals localise (`1 night` /
      `2 nights`).
-5. Concurrency check (optional): two parallel `curl` requests for the same
+5. Production/D1 mode only: `bun run db:migrate`, `bun run demo`, then repeat
+   the same booking checks against the D1-backed demo seed.
+6. Concurrency check (optional): two parallel `curl` requests for the same
    target/range — exactly one succeeds, the other gets a `CONFLICT` error.
 
 ## License

@@ -37,7 +37,7 @@ const STATUS_BADGE: Record<'active' | 'revoked' | 'inactive', string> = {
  *  `text-sm` overrides the Badge's default `text-xs` so the URL stays legible. */
 const IDENTITY_BADGE = 'gap-1.5 bg-[var(--muted)] text-sm font-normal text-[var(--muted-foreground)]';
 
-export function Invite({ origin, invites }: InviteProps) {
+export function Invite({ origin, invites, demo }: InviteProps) {
   const t = useTranslations('Invite');
   const [list, setList] = React.useState<InviteListItem[]>(invites);
 
@@ -48,7 +48,11 @@ export function Invite({ origin, invites }: InviteProps) {
         <p className="text-sm text-[var(--muted-foreground)]">{t('subtitle')}</p>
       </header>
 
-      <CreateForm origin={origin} onCreated={(i) => setList((cur) => [i, ...cur])} />
+      <CreateForm
+        origin={origin}
+        demo={demo}
+        onCreated={(i) => setList((cur) => [i, ...cur])}
+      />
       <ListSection invites={list} origin={origin} setList={setList} />
     </div>
   );
@@ -56,9 +60,11 @@ export function Invite({ origin, invites }: InviteProps) {
 
 function CreateForm({
   origin,
+  demo,
   onCreated,
 }: {
   origin: string;
+  demo: boolean;
   onCreated: (i: InviteListItem) => void;
 }) {
   const t = useTranslations('Invite');
@@ -162,11 +168,14 @@ function CreateForm({
               type="button"
               role="radio"
               aria-checked={mode === 'email'}
+              disabled={demo}
               onClick={() => setMode('email')}
               className={`inline-flex cursor-pointer items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
                 mode === 'email'
                   ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-                  : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                  : demo
+                    ? 'text-[var(--muted-foreground)] opacity-50'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
               }`}
             >
               <Mail className="size-3.5" />

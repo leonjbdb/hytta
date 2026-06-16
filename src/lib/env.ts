@@ -7,6 +7,16 @@ import { z } from 'zod';
  * contract from the booking-app plan.
  */
 const EnvSchema = z.object({
+  /**
+   * Cache-only public demo mode. When enabled, runtime app data must be served
+   * from cache and reset hourly; D1 and outbound email are not required.
+   */
+  DEMO: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // Database: the app talks to Cloudflare D1 through the `DB` binding
   // (wrangler.jsonc), resolved per-request via `getDb()` — there is no
   // DATABASE_URL connection string to validate here.
@@ -21,13 +31,11 @@ const EnvSchema = z.object({
    * Display name optional: `Hytta <noreply@example.com>`. (The cottage name is
    * substituted at send time, so the display name here is only a fallback.)
    */
-  EMAIL_FROM: z.string().min(1),
+  EMAIL_FROM: z.string().optional().default(''),
 
   /**
-   * Resend HTTP API key (https://resend.com/api-keys). Optional in dev:
-   * when empty, outbound mail logs to the server console instead of being
-   * sent, so you can sign in / accept invites / reset passwords without
-   * configuring a real mailbox.
+   * Resend HTTP API key (https://resend.com/api-keys). Required at send time
+   * when EMAIL_PROVIDER=resend outside DEMO=true.
    */
   RESEND_API_KEY: z.string().optional().default(''),
 
@@ -36,9 +44,8 @@ const EnvSchema = z.object({
    * recommended) sends via the Resend HTTP API and runs anywhere, including the
    * Cloudflare Worker. `smtp` sends via nodemailer and therefore only works on a
    * Node runtime (self-hosted / `bun run start`), NOT on the Worker, which can't
-   * open raw SMTP sockets. When the selected provider isn't configured, mail is
-   * logged to the console and never blocks the app (delivery is recommended,
-   * not enforced).
+   * open raw SMTP sockets. Outside DEMO=true, missing provider credentials fail
+   * when an email send is attempted.
    */
   EMAIL_PROVIDER: z.enum(['resend', 'smtp']).optional().default('resend'),
 
@@ -76,6 +83,14 @@ const EnvSchema = z.object({
   // (incl. empty) as a normal member — so don't constrain to an enum here, or
   // the shipped empty `TEST_USER_ROLE=` would fail boot validation.
   TEST_USER_ROLE: z.string().optional().default(''),
+}).superRefine((value, ctx) => {
+  if (!value.DEMO && value.EMAIL_FROM.trim().length === 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['EMAIL_FROM'],
+      message: 'EMAIL_FROM is required unless DEMO=true',
+    });
+  }
 });
 
 export type Env = z.infer<typeof EnvSchema>;

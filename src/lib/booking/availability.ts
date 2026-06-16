@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { db } from '@/db/client';
+import { isDemoMode } from '@/lib/demo-mode';
+import { getDemoAvailability } from './demo-availability';
 import type {
   AvailabilityTarget,
   BedOccupancy,
@@ -376,6 +378,8 @@ export async function getAvailability(
   range: DateRange,
   excludeBookingId?: string,
 ): Promise<AvailabilityTarget[]> {
+  if (isDemoMode()) return getDemoAvailability(range, excludeBookingId);
+
   // When editing, the booking's own rows must not count against itself.
   const notEdited = excludeBookingId
     ? sql`AND (r.booking_id IS NULL OR r.booking_id != ${excludeBookingId})`
@@ -468,6 +472,11 @@ export async function getAvailability(
     }
     const roomId = row.room_id!;
     const beds = bedsByRoom.get(roomId) ?? [];
+    const blockedByFullCottage = Number(row.full_blocked) > 0;
+    const taken =
+      blockedByFullCottage && row.capacity != null
+        ? row.capacity
+        : roomPeak.get(roomId) ?? 0;
     return {
       kind: 'SLOT_ROOM',
       roomId,
@@ -478,7 +487,7 @@ export async function getAvailability(
       capacity: row.capacity,
       // Peak concurrent occupancy, not the raw overlap count — back-to-back
       // stays don't both consume a slot. Matches the conflict checker.
-      taken: roomPeak.get(roomId) ?? 0,
+      taken,
       takenBy: roomOccupants.get(roomId) ?? [],
       pending: Number(row.pending),
       // Room dot names everyone pending in the room: room-level requests plus

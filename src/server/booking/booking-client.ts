@@ -1,6 +1,9 @@
-import 'server-only';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/client';
+import { getDemoD1ForState } from '@/db/demo-d1';
+import { drizzleFor } from '@/db/drizzle';
+import { updateDemoState } from '@/db/demo-cache';
+import { isDemoMode } from '@/lib/demo-mode';
 import { deserializeDomainError } from '@/lib/booking/errors';
 import { ReservationService } from '@/lib/booking/reservation-service';
 import type { BookingDO, DOResult } from './booking-do';
@@ -11,7 +14,7 @@ import type { BookingDO, DOResult } from './booking-do';
  * they serialise.
  */
 export function readReservationService(): ReservationService {
-  return new ReservationService(getDb());
+  return new ReservationService(getDb(), { demoMode: isDemoMode() });
 }
 
 /**
@@ -24,6 +27,11 @@ export function readReservationService(): ReservationService {
  */
 function stub(): DurableObjectStub<BookingDO> {
   const { env } = getCloudflareContext();
+  if (!env.BOOKING) {
+    throw new Error(
+      'Missing Cloudflare Durable Object binding BOOKING. Set DEMO=true or bind BookingDO.',
+    );
+  }
   return env.BOOKING.get(env.BOOKING.idFromName('global'));
 }
 
@@ -33,25 +41,52 @@ async function unwrap<T>(p: Promise<DOResult<T>>): Promise<T> {
   throw deserializeDomainError(result.error);
 }
 
+function demoWrite<T>(work: (service: ReservationService) => Promise<T>): Promise<T> {
+  return updateDemoState((state) =>
+    work(new ReservationService(drizzleFor(getDemoD1ForState(state)), { demoMode: true })),
+  );
+}
+
 export const bookingWrites = {
   createBooking: (bookerId: string, raw: unknown) =>
-    unwrap(stub().createBooking(bookerId, raw)),
-  create: (userId: string, raw: unknown) => unwrap(stub().create(userId, raw)),
+    isDemoMode()
+      ? demoWrite((service) => service.createBooking(bookerId, raw))
+      : unwrap(stub().createBooking(bookerId, raw)),
+  create: (userId: string, raw: unknown) =>
+    isDemoMode()
+      ? demoWrite((service) => service.create(userId, raw))
+      : unwrap(stub().create(userId, raw)),
   updateBooking: (
     actorId: string,
     bookingId: string,
     raw: unknown,
     opts?: { allowAnyBooker?: boolean },
-  ) => unwrap(stub().updateBooking(actorId, bookingId, raw, opts)),
+  ) =>
+    isDemoMode()
+      ? demoWrite((service) => service.updateBooking(actorId, bookingId, raw, opts))
+      : unwrap(stub().updateBooking(actorId, bookingId, raw, opts)),
   cancel: (actorId: string, reservationId: string, opts?: { allowElevated?: boolean }) =>
-    unwrap(stub().cancel(actorId, reservationId, opts)),
+    isDemoMode()
+      ? demoWrite((service) => service.cancel(actorId, reservationId, opts))
+      : unwrap(stub().cancel(actorId, reservationId, opts)),
   cancelBooking: (
     actorId: string,
     bookingId: string,
     opts?: { allowElevated?: boolean },
-  ) => unwrap(stub().cancelBooking(actorId, bookingId, opts)),
-  approveBooking: (bookingId: string) => unwrap(stub().approveBooking(bookingId)),
+  ) =>
+    isDemoMode()
+      ? demoWrite((service) => service.cancelBooking(actorId, bookingId, opts))
+      : unwrap(stub().cancelBooking(actorId, bookingId, opts)),
+  approveBooking: (bookingId: string) =>
+    isDemoMode()
+      ? demoWrite((service) => service.approveBooking(bookingId))
+      : unwrap(stub().approveBooking(bookingId)),
   approveBookingResolvingConflicts: (bookingId: string) =>
-    unwrap(stub().approveBookingResolvingConflicts(bookingId)),
-  rejectBooking: (bookingId: string) => unwrap(stub().rejectBooking(bookingId)),
+    isDemoMode()
+      ? demoWrite((service) => service.approveBookingResolvingConflicts(bookingId))
+      : unwrap(stub().approveBookingResolvingConflicts(bookingId)),
+  rejectBooking: (bookingId: string) =>
+    isDemoMode()
+      ? demoWrite((service) => service.rejectBooking(bookingId))
+      : unwrap(stub().rejectBooking(bookingId)),
 };

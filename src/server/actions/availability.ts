@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { getAvailability } from '@/lib/booking/availability';
+import { getDemoOccupancy } from '@/lib/booking/demo-availability';
+import { isDemoMode } from '@/lib/demo-mode';
 import { isDayFullyBooked, type RoomShape } from '@/lib/booking/capacity';
 import type { AvailabilityTarget } from '@/lib/booking/types';
 import { auth } from '@/lib/auth/config';
@@ -76,6 +78,7 @@ export async function fetchOccupancy(from: string, to: string): Promise<DayOccup
   if (!session?.user?.id) return [];
   const parsed = z.object({ from: ISO, to: ISO }).safeParse({ from, to });
   if (!parsed.success || parsed.data.from > parsed.data.to) return [];
+  if (isDemoMode()) return getDemoOccupancy(parsed.data.from, parsed.data.to);
 
   const rows = await db.all<{
     d: string;

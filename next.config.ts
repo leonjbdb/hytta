@@ -1,10 +1,40 @@
 import createNextIntlPlugin from 'next-intl/plugin';
 import type { NextConfig } from 'next';
 import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
-// Makes the Cloudflare bindings (D1, the BOOKING Durable Object, secrets) from
-// wrangler.jsonc available via `getCloudflareContext()` under `next dev`.
-void initOpenNextCloudflareForDev();
+function localEnvValue(name: string): string {
+  const path = resolve('.env.local');
+  if (!existsSync(path)) return '';
+
+  for (const rawLine of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (match?.[1] !== name) continue;
+
+    let value = (match[2] ?? '').trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    return value;
+  }
+  return '';
+}
+
+const demoMode =
+  (process.env.DEMO ?? localEnvValue('DEMO')).trim().toLowerCase() === 'true';
+
+if (!demoMode) {
+  // Makes the Cloudflare bindings (D1, the BOOKING Durable Object, secrets) from
+  // wrangler.jsonc available via `getCloudflareContext()` under `next dev`.
+  void initOpenNextCloudflareForDev();
+}
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 

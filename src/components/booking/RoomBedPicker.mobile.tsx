@@ -2,15 +2,24 @@
 
 import * as React from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { Plus, X } from 'lucide-react';
+import { GripVertical, Plus, User, X } from 'lucide-react';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import type { AvailabilityTarget, BedOccupancy, OccupantRef, PendingRef } from '@/lib/booking/types';
 import { roomLabel } from '@/lib/booking/room-label';
-import { formatStay } from '@/lib/booking/format-stay';
 import { FullCottageShape, RoomIcon } from './RoomIcon';
 import { PendingDot } from './PendingDot';
-import { PersonBadge } from '@/components/PersonBadge';
-import { BookedByMultiple } from './BookedByMultiple';
+import { BookedOccupants } from './BookedOccupants';
 import { BookedUsersContext, collectBookedUserIds, useBookedUsers } from './booked-users';
 import { SearchableSelect, type ComboOption } from './SearchableSelect';
 
@@ -407,6 +416,71 @@ export function RoomBedPicker({
     setRoomList(roomId, list.length ? list : null);
   };
 
+  const bedById = React.useMemo(
+    () => new Map(beds.map((b) => [b.id, b] as const)),
+    [beds],
+  );
+
+  /** Seats on a bed still available to *you* — its capacity minus the peak
+   *  concurrent seats others already hold. Doubles are shareable, so a double
+   *  with one other occupant still returns 1. */
+  const bedFreeForMe = React.useCallback(
+    (roomId: string, bedId: string): number => {
+      const occ = bedOccupancyOf(availability, roomId).find((b) => b.bedId === bedId);
+      if (!occ) return 0;
+      return Math.max(0, occ.capacity - occ.takenByOthers);
+    },
+    [availability],
+  );
+
+  /** How many picks already occupy a bed within a room list. */
+  const seatsUsed = (list: ParticipantPick[], bedId: string, skipIndex?: number) =>
+    list.reduce((n, p, i) => n + (p.bedId === bedId && i !== skipIndex ? 1 : 0), 0);
+
+  /**
+   * Drag a participant onto a bed: move it (cross-room allowed), stamp its bed,
+   * and keep a registered user in only one place. Respects the bed's seat
+   * capacity and skips beds already taken by someone else.
+   */
+  const moveToBed = (
+    sourceRoomId: string,
+    sourceIndex: number,
+    targetRoomId: string,
+    targetBedId: string,
+  ) => {
+    const bed = bedById.get(targetBedId);
+    const sourceList = value.rooms[sourceRoomId];
+    const moving = sourceList?.[sourceIndex];
+    if (!bed || !moving) return;
+    const free = bedFreeForMe(targetRoomId, targetBedId);
+    const skip = sourceRoomId === targetRoomId ? sourceIndex : undefined;
+    if (seatsUsed(value.rooms[targetRoomId] ?? [], targetBedId, skip) >= free) {
+      return;
+    }
+
+    const newRooms: Record<string, ParticipantPick[]> = { ...value.rooms };
+    const prunedSource = sourceList!.filter((_, i) => i !== sourceIndex);
+    const movedPick: ParticipantPick = { ...moving, bedId: targetBedId };
+    if (sourceRoomId === targetRoomId) {
+      newRooms[targetRoomId] = [...prunedSource, movedPick];
+    } else {
+      if (prunedSource.length === 0) delete newRooms[sourceRoomId];
+      else newRooms[sourceRoomId] = prunedSource;
+      newRooms[targetRoomId] = [...(newRooms[targetRoomId] ?? []), movedPick];
+    }
+    if (moving.kind === 'user') {
+      for (const id of Object.keys(newRooms)) {
+        if (id === targetRoomId) continue;
+        const filtered = newRooms[id]!.filter(
+          (p) => !(p.kind === 'user' && p.userId === moving.userId),
+        );
+        if (filtered.length === 0) delete newRooms[id];
+        else newRooms[id] = filtered;
+      }
+    }
+    onChange({ ...value, rooms: newRooms });
+  };
+
   // Park any bed-room participant that lacks a valid bed (group preset / mode
   // flip, or a bed that just became taken) into the next free bed so it shows
   // and submits as a BED row.
@@ -452,6 +526,41 @@ export function RoomBedPicker({
   // Treat already-booked people as "used" too, so we never default to adding
   // someone who can't be booked over these dates.
   const usedUserIds = new Set([...collectUsedUserIds(value), ...bookedIds]);
+
+  // dnd-kit sensors: a small activation distance so a tap on the grip doesn't
+  // start a drag, but a deliberate drag does. The grip has `touch-none`, so the
+  // pointer gesture is captured on touch without fighting the page scroll.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // Track the active drag so we can render a floating preview that follows the
+  // pointer (DragOverlay).
+  const [activeDrag, setActiveDrag] = React.useState<{ pick: ParticipantPick } | null>(null);
+
+  const onDragStart = (event: DragStartEvent) => {
+    const data = event.active.data.current as
+      | { roomId?: string; index?: number }
+      | undefined;
+    if (!data?.roomId || typeof data.index !== 'number') return;
+    const pick = value.rooms[data.roomId]?.[data.index];
+    if (!pick) return;
+    setActiveDrag({ pick });
+  };
+  const onDragEnd = (event: DragEndEvent) => {
+    setActiveDrag(null);
+    const { active, over } = event;
+    if (!over) return;
+    const src = active.data.current as { roomId?: string; index?: number } | undefined;
+    const tgt = over.data.current as { roomId?: string; bedId?: string } | undefined;
+    if (!src?.roomId || typeof src.index !== 'number' || !tgt?.roomId) return;
+    if (tgt.bedId) moveToBed(src.roomId, src.index, tgt.roomId, tgt.bedId);
+    else moveParticipant(src.roomId, src.index, tgt.roomId);
+  };
+  const onDragCancel = () => setActiveDrag(null);
+
+  const dragLabel = (pick: ParticipantPick) =>
+    pick.kind === 'user'
+      ? users.find((u) => u.id === pick.userId)?.name ?? '—'
+      : pick.name || '—';
 
   return (
     <BookedUsersContext.Provider value={bookedIds}>
@@ -506,6 +615,12 @@ export function RoomBedPicker({
       )}
 
       {value.mode === 'ROOMS' && (
+        <DndContext
+          sensors={sensors}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDragCancel={onDragCancel}
+        >
         <div className="grid grid-cols-1 gap-3">
           {orderedRooms.map((room) => {
             // BEDS-mode rooms are booked per bed — assign a person to each bed.
@@ -567,21 +682,11 @@ export function RoomBedPicker({
               >
                 {info.takenBy.length > 0 && (
                   // Slots already held by others — greyed box (muted bg, no
-                  // opacity so the tooltips stay crisp). One person → badge;
-                  // several distinct people → a "multiple people" label whose
-                  // tooltip lists who and when (e.g. two back-to-back stays).
+                  // opacity so the tooltips stay crisp). Everyone who fits within
+                  // capacity gets their own badge; only more people than capacity
+                  // (back-to-back stays) collapse to a "multiple people" label.
                   <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 p-2">
-                    {new Set(info.takenBy.map((o) => o.name)).size > 1 ? (
-                      <BookedByMultiple occupants={info.takenBy} />
-                    ) : (
-                      <PersonBadge
-                        name={info.takenBy[0]!.name}
-                        isGuest={info.takenBy[0]!.isGuest}
-                        isAdmin={info.takenBy[0]!.isAdmin}
-                        isManager={info.takenBy[0]!.isManager}
-                        when={formatStay(info.takenBy[0]!, locale)}
-                      />
-                    )}
+                    <BookedOccupants occupants={info.takenBy} capacity={capacity} />
                   </div>
                 )}
                 <ParticipantList
@@ -599,6 +704,16 @@ export function RoomBedPicker({
             );
           })}
         </div>
+        {/* Floating preview that follows the pointer during a drag. */}
+        <DragOverlay dropAnimation={null}>
+          {activeDrag ? (
+            <div className="pointer-events-none flex items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--card)] px-3 py-2 text-sm font-medium shadow-lg">
+              <User className="size-4 text-[var(--muted-foreground)]" />
+              <span>{dragLabel(activeDrag.pick)}</span>
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
       )}
     </div>
     </BookedUsersContext.Provider>
@@ -660,9 +775,22 @@ function ParticipantList({
       {showBedHint && bedHint && (
         <p className="text-xs text-[var(--muted-foreground)]">{bedHint}</p>
       )}
-      {participants.map((p, i) => {
-        const row = (
+      {participants.map((p, i) =>
+        // Capacity rooms reuse the exact single-bed seat (drag handle, label +
+        // remove, dropdown) — just without the bed's outer box border.
+        boxed && dragSourceRoomId ? (
+          <BedSeat
+            key={i}
+            roomId={dragSourceRoomId}
+            index={i}
+            pick={p}
+            users={users}
+            onChange={(next) => updateAt(i, next)}
+            onRemove={() => removeAt(i)}
+          />
+        ) : (
           <ParticipantRow
+            key={i}
             index={i}
             pick={p}
             label={`${labelPrefix} ${i + 1}`}
@@ -674,15 +802,8 @@ function ParticipantList({
             removeLabel={t('removeParticipant')}
             dragHandleLabel={t('dragParticipant')}
           />
-        );
-        return boxed ? (
-          <div key={i} className="rounded-lg border border-[var(--border)] p-2">
-            {row}
-          </div>
-        ) : (
-          <React.Fragment key={i}>{row}</React.Fragment>
-        );
-      })}
+        ),
+      )}
       {canAdd && (
         // One "add" treatment everywhere: a full-width slot box with a dashed
         // "+ Add" chip — identical whether the list is empty or already has
@@ -724,10 +845,9 @@ function ParticipantRow({
   removeLabel: string;
   dragHandleLabel: string;
 }) {
-  // Mobile drops the drag-and-drop reassignment in favour of the dropdown
-  // (less janky on touch screens, more accessible). `dragSourceRoomId` and
-  // `dragHandleLabel` are accepted for prop-shape parity with the desktop
-  // variant but ignored here.
+  // Whole-cottage rows aren't a drag source (only capacity rooms are, and those
+  // render the draggable `BedSeat` instead). `dragSourceRoomId` /
+  // `dragHandleLabel` are accepted for prop-shape parity but unused here.
   void dragSourceRoomId;
   void dragHandleLabel;
 
@@ -741,11 +861,72 @@ function ParticipantRow({
           type="button"
           aria-label={removeLabel}
           onClick={onRemove}
-          className="mb-px inline-flex size-9 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] text-sm hover:bg-[var(--muted)]"
+          className="mb-px inline-flex size-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] text-sm hover:bg-[var(--muted)]"
         >
           <X className="size-3.5" />
         </button>
       )}
+    </div>
+  );
+}
+
+function BedSeat({
+  roomId,
+  index,
+  pick,
+  users,
+  onChange,
+  onRemove,
+}: {
+  roomId: string;
+  index: number;
+  pick: ParticipantPick;
+  users: PickerUser[];
+  onChange: (p: ParticipantPick) => void;
+  onRemove: () => void;
+}) {
+  const t = useTranslations('Book');
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
+    id: `pick-${roomId}-${index}`,
+    data: { roomId, index },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex w-full items-stretch gap-1 rounded-md border border-[var(--border)] bg-[var(--card)] p-1',
+        isDragging && 'opacity-70 ring-1 ring-[var(--primary)]/40',
+      )}
+    >
+      {/* Drag handle keeps the whole height on the left. */}
+      <button
+        ref={setActivatorNodeRef}
+        type="button"
+        aria-label={t('dragToBed')}
+        title={t('dragToBed')}
+        {...listeners}
+        {...attributes}
+        className="flex w-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-[var(--muted-foreground)] active:cursor-grabbing active:bg-[var(--muted)]"
+      >
+        <GripVertical className="size-3.5" />
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* Label + remove share the top row. */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-[var(--muted-foreground)]">{t('participantLabel')}</span>
+          <button
+            type="button"
+            aria-label={t('removeParticipant')}
+            onClick={onRemove}
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[var(--muted-foreground)] active:bg-[var(--muted)]"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+        {/* Field fills the width so the name fits. */}
+        <ParticipantPicker users={users} value={pick} onChange={onChange} />
+      </div>
     </div>
   );
 }
@@ -756,7 +937,7 @@ function ParticipantPicker({
   value,
   onChange,
 }: {
-  label: string;
+  label?: string;
   users: PickerUser[];
   value: ParticipantPick;
   onChange: (p: ParticipantPick) => void;
@@ -852,12 +1033,14 @@ function RoomCard({
   pendingParticipants: PendingRef[];
   children?: React.ReactNode;
 }) {
-  // No drop targets on mobile — `roomId` and `acceptsDrops` are accepted for
-  // prop-shape parity with the desktop variant but ignored here.
-  void roomId;
-  void acceptsDrops;
+  const { setNodeRef, isOver } = useDroppable({
+    id: `room-${roomId}`,
+    data: { roomId },
+    disabled: !acceptsDrops,
+  });
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         'flex flex-col gap-3 rounded-xl border bg-[var(--card)] p-4 transition-colors',
         checked
@@ -866,6 +1049,7 @@ function RoomCard({
             ? 'border-dashed border-[var(--color-partial)]/70 bg-[color-mix(in_oklch,var(--card),var(--color-partial)_6%)]'
             : 'border-[var(--border)]',
         !available && 'opacity-60',
+        isOver && acceptsDrops && 'border-[var(--primary)] ring-2 ring-[var(--primary)]/50',
       )}
     >
       <div className="flex items-center gap-3">
@@ -885,7 +1069,7 @@ function RoomCard({
   );
 }
 
-/* ---------------- bed-mode room (touch: dropdown seats, no drag) ---------------- */
+/* ---------------- bed-mode room ---------------- */
 
 function BedRoomCard({
   roomId,
@@ -949,6 +1133,7 @@ function BedRoomCard({
         {orderedBeds.map((bed) => (
           <BedBox
             key={bed.id}
+            roomId={roomId}
             bed={bed}
             capacity={takenMap.get(bed.id)?.capacity ?? bedCapacity(bed.kind)}
             takenByOthers={takenMap.get(bed.id)?.takenByOthers ?? 0}
@@ -967,6 +1152,7 @@ function BedRoomCard({
 }
 
 function BedBox({
+  roomId,
   bed,
   capacity,
   takenByOthers,
@@ -978,6 +1164,7 @@ function BedBox({
   onUpdate,
   onRemove,
 }: {
+  roomId: string;
   bed: PickerBed;
   capacity: number;
   takenByOthers: number;
@@ -990,7 +1177,6 @@ function BedBox({
   onRemove: (index: number) => void;
 }) {
   const t = useTranslations('Book');
-  const locale = useLocale();
   const bedName = bed.kind === 'DOUBLE' ? t('bedDouble') : t('bedSingle');
   // Seats free for me = capacity − others' peak. Doubles are shareable.
   const freeForMe = Math.max(0, capacity - takenByOthers);
@@ -998,20 +1184,17 @@ function BedBox({
   const canAdd = occupants.length < freeForMe;
   const empty = !hasOthers && occupants.length === 0 && freeForMe > 0;
   const onlyOthers = hasOthers && occupants.length === 0 && freeForMe === 0;
+  const { setNodeRef, isOver } = useDroppable({
+    id: `bed-${bed.id}`,
+    data: { roomId, bedId: bed.id },
+    disabled: freeForMe === 0,
+  });
 
   const othersBadge = hasOthers ? (
+    // Each holder gets their own badge (two people sharing a double both show);
+    // only more distinct people than capacity (back-to-back) collapse.
     <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--muted)]/50 px-1.5 py-1">
-      {new Set(takenBy.map((o) => o.name)).size > 1 ? (
-        <BookedByMultiple occupants={takenBy} />
-      ) : (
-        <PersonBadge
-          name={takenBy[0]!.name}
-          isGuest={takenBy[0]!.isGuest}
-          isAdmin={takenBy[0]!.isAdmin}
-          isManager={takenBy[0]!.isManager}
-          when={formatStay(takenBy[0]!, locale)}
-        />
-      )}
+      <BookedOccupants occupants={takenBy} capacity={capacity} />
     </div>
   ) : null;
 
@@ -1023,9 +1206,15 @@ function BedBox({
       </div>
       {empty ? (
         <button
+          ref={setNodeRef}
           type="button"
           onClick={onAdd}
-          className="flex w-full items-center rounded-lg border border-[var(--border)] p-2 text-left transition-colors active:bg-[var(--muted)]/50"
+          className={cn(
+            'flex w-full items-center rounded-lg border p-2 text-left transition-colors active:bg-[var(--muted)]/50',
+            isOver
+              ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/50'
+              : 'border-[var(--border)]',
+          )}
         >
           <span className="pointer-events-none rounded-md border border-dashed border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
             <Plus className="mr-1 inline size-3" /> {t('bedSeatAdd')}
@@ -1033,33 +1222,27 @@ function BedBox({
         </button>
       ) : (
         <div
+          ref={setNodeRef}
           className={cn(
-            'flex flex-col gap-2 rounded-lg border p-2',
+            'flex flex-col gap-2 rounded-lg border p-2 transition-colors',
             onlyOthers
               ? 'border-[var(--border)] bg-[var(--muted)]/40'
-              : 'border-[var(--border)]',
+              : isOver
+                ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/50'
+                : 'border-[var(--border)]',
           )}
         >
           {hasOthers && othersBadge}
           {occupants.map(({ p, i }) => (
-            <div key={i} className="flex items-end gap-2">
-              <div className="flex-1">
-                <ParticipantPicker
-                  label={t('participantLabel')}
-                  users={users}
-                  value={p}
-                  onChange={(np) => onUpdate(i, np)}
-                />
-              </div>
-              <button
-                type="button"
-                aria-label={t('removeParticipant')}
-                onClick={() => onRemove(i)}
-                className="mb-px inline-flex size-9 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] text-sm hover:bg-[var(--muted)]"
-              >
-                <X className="size-3.5" />
-              </button>
-            </div>
+            <BedSeat
+              key={i}
+              roomId={roomId}
+              index={i}
+              pick={p}
+              users={users}
+              onChange={(np) => onUpdate(i, np)}
+              onRemove={() => onRemove(i)}
+            />
           ))}
           {canAdd && (
             <button

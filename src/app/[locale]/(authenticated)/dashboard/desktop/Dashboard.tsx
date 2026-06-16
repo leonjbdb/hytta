@@ -235,9 +235,10 @@ export function Dashboard({
 
 /**
  * One booking rendered as an accordion. The header (dates, booker, status,
- * actions) stays visible; the participant list collapses. Your own bookings and
- * any pending request (yours or anyone's) start expanded; other people's
- * already-approved stays start collapsed to keep the dashboard scannable.
+ * actions) stays visible; the participant list collapses. Your own bookings
+ * start expanded, and others' pending requests start expanded only for managers
+ * (who approve them); everything else — including others' pending requests for
+ * non-managers — starts collapsed to keep the dashboard scannable.
  */
 function BookingGroupCard({
   g,
@@ -259,7 +260,10 @@ function BookingGroupCard({
   const isViewerBooker = g.bookerId === viewerId;
   const isParticipant = g.rows.some((r) => r.participantId === viewerId);
   const isMine = isViewerBooker || isParticipant;
-  const [open, setOpen] = React.useState(g.pending || isMine);
+  // Expand your own bookings (and your own pending requests). Others' pending
+  // requests only auto-expand for managers — they're the ones who act on them;
+  // for everyone else they start collapsed to keep the dashboard scannable.
+  const [open, setOpen] = React.useState(isMine || (g.pending && isManager));
 
   // Modify: owner or admin. Delete: owner, admin, or manager.
   const canModify = isViewerBooker || isAdmin;

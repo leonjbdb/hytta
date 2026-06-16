@@ -1,5 +1,6 @@
 import { env } from '@/lib/env';
-import { composeFrom, type OutboundEmail, type Transport } from './from';
+import { isDemoMode } from '@/lib/demo-mode';
+import type { OutboundEmail, Transport } from './from';
 import { resendConfigured, resendTransport } from './providers/resend';
 import { smtpConfigured, smtpTransport } from './providers/smtp';
 
@@ -12,22 +13,28 @@ export type { OutboundEmail, Transport };
  * vendor lock-in, and adding another provider is a single file under
  * `providers/` plus a branch here.
  *
- * Delivery is recommended, not enforced: when the selected provider isn't
- * configured (e.g. local dev with no keys), the message is logged to stdout and
- * the call resolves, so magic-link / invite / reset flows still work.
+ * Outside explicit DEMO=true mode, a selected-but-unconfigured provider is a
+ * deployment error. Let it fail loudly so missing delivery credentials do not
+ * hide during testing.
  */
 export const sendMail: Transport = async (msg: OutboundEmail) => {
+  if (isDemoMode()) {
+    console.info(
+      `\n[email] (demo mode — message not sent)\n` +
+        `  to:      ${msg.to}\n` +
+        `  subject: ${msg.subject}\n\n${msg.text}\n`,
+    );
+    return;
+  }
+
   const provider = env.EMAIL_PROVIDER;
   const configured = provider === 'smtp' ? smtpConfigured() : resendConfigured();
 
   if (!configured) {
-    console.info(
-      `\n[email] (${provider} not configured — message not sent)\n` +
-        `  to:      ${msg.to}\n` +
-        `  from:    ${composeFrom(msg.fromName)}\n` +
-        `  subject: ${msg.subject}\n\n${msg.text}\n`,
+    throw new Error(
+      `EMAIL_PROVIDER=${provider} is selected but not configured; ` +
+        'set the required provider credentials or run with DEMO=true.',
     );
-    return;
   }
 
   if (provider === 'smtp') {

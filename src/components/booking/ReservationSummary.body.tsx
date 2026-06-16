@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { CalendarCheck, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { bedDisplayName } from '@/lib/booking/bed-display';
+import { formatStay } from '@/lib/booking/format-stay';
 import { daysInRange } from '@/lib/utils';
 import { FullCottageShape, RoomIcon } from './RoomIcon';
 import {
@@ -60,7 +61,11 @@ export function ReservationSummaryBody({
     });
   };
 
-  const eyebrow = ready ? t('daysCount', { days }) : t('summaryTitle');
+  const dateRange =
+    startDate && endDate ? formatStay({ startDate, endDate }, locale) : '';
+  const eyebrow = ready
+    ? `${t('daysCount', { days })} · ${dateRange}`
+    : t('summaryTitle');
   const shortSummary = !ready
     ? t('summaryNoSelection')
     : model.mode === 'FULL_COTTAGE'
@@ -75,7 +80,7 @@ export function ReservationSummaryBody({
         <CalendarCheck className="size-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+        <p className="text-xs font-semibold capitalize tracking-wide text-[var(--muted-foreground)]">
           {eyebrow}
         </p>
         <p className="truncate text-sm font-medium">{shortSummary}</p>

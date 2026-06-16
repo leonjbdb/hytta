@@ -34,9 +34,9 @@ export class ReservationService {
   private readonly db: DB;
   private readonly conflicts: ReturnType<typeof createConflictChecker>;
 
-  constructor(db: DB) {
+  constructor(db: DB, options: { demoMode?: boolean } = {}) {
     this.db = db;
-    this.conflicts = createConflictChecker(db);
+    this.conflicts = createConflictChecker(db, options);
   }
 
   /** Run a set of statements atomically (no-op when empty). */
@@ -84,6 +84,104 @@ export class ReservationService {
       .where(eq(beds.roomId, roomId))
       .all();
     return bedRows.reduce((acc, b) => acc + (b.kind === 'DOUBLE' ? 2 : 1), 0);
+  }
+
+  private async participantOverlapRows(
+    participantUserIds: string[],
+    range: { startDate: string; endDate: string },
+    options: {
+      excludeBookingId?: string;
+      statuses: Array<'PENDING' | 'CONFIRMED'>;
+    },
+  ): Promise<Array<{ id: string }>> {
+    if (participantUserIds.length === 0) return [];
+
+    if (options.excludeBookingId) {
+      return this.db
+        .select({ id: reservations.id })
+        .from(reservations)
+        .where(
+          and(
+            inArray(reservations.userId, participantUserIds),
+            inArray(reservations.status, options.statuses),
+            ne(reservations.bookingId, options.excludeBookingId),
+            lte(reservations.startDate, range.endDate),
+            gte(reservations.endDate, range.startDate),
+          ),
+        )
+        .all();
+    }
+
+    return this.db
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(
+        and(
+          inArray(reservations.userId, participantUserIds),
+          inArray(reservations.status, options.statuses),
+          lte(reservations.startDate, range.endDate),
+          gte(reservations.endDate, range.startDate),
+        ),
+      )
+      .all();
+  }
+
+  private async assertParticipantsAvailable(
+    participantUserIds: string[],
+    range: { startDate: string; endDate: string },
+    excludeBookingId?: string,
+  ): Promise<void> {
+    const userBusy = await this.participantOverlapRows(participantUserIds, range, {
+      excludeBookingId,
+      statuses: ['PENDING', 'CONFIRMED'],
+    });
+    if (userBusy.length > 0) {
+      throw new ConflictError(
+        'One or more participants already have a reservation overlapping these dates',
+      );
+    }
+  }
+
+  private async assertPendingBookingCanBeConfirmed(bookingId: string): Promise<void> {
+    const rows = await this.db
+      .select({
+        userId: reservations.userId,
+        startDate: reservations.startDate,
+        endDate: reservations.endDate,
+      })
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.bookingId, bookingId),
+          eq(reservations.status, 'PENDING'),
+        ),
+      )
+      .all();
+    const participantUserIds = [
+      ...new Set(rows.map((row) => row.userId).filter((id): id is string => id != null)),
+    ];
+    if (participantUserIds.length === 0 || rows.length === 0) return;
+
+    const firstRow = rows[0]!;
+    const range = {
+      startDate: rows.reduce(
+        (min, row) => (row.startDate < min ? row.startDate : min),
+        firstRow.startDate,
+      ),
+      endDate: rows.reduce(
+        (max, row) => (row.endDate > max ? row.endDate : max),
+        firstRow.endDate,
+      ),
+    };
+    const userBusy = await this.participantOverlapRows(participantUserIds, range, {
+      excludeBookingId: bookingId,
+      statuses: ['CONFIRMED'],
+    });
+    if (userBusy.length > 0) {
+      throw new ConflictError(
+        'One or more participants already have a confirmed reservation overlapping these dates',
+      );
+    }
   }
 
   async createBooking(
@@ -140,29 +238,9 @@ export class ReservationService {
     const bookingId = randomUUID();
     const range = { startDate: input.startDate, endDate: input.endDate };
 
-    // A registered participant can't be in two places at once. Guests are
-    // free-form names so we don't try to dedupe them across bookings.
-    if (participantUserIds.length > 0) {
-      const userBusy = await this.db
-        .select({ id: reservations.id })
-        .from(reservations)
-        .where(
-          and(
-            inArray(reservations.userId, participantUserIds),
-            // Only a CONFIRMED stay blocks — a participant may sit in several
-            // PENDING requests at once (a manager picks which to approve).
-            eq(reservations.status, 'CONFIRMED'),
-            lte(reservations.startDate, input.endDate),
-            gte(reservations.endDate, input.startDate),
-          ),
-        )
-        .all();
-      if (userBusy.length > 0) {
-        throw new ConflictError(
-          'One or more participants already have a reservation overlapping these dates',
-        );
-      }
-    }
+    // A registered participant can't be in two active places at once. Guests
+    // are free-form names so we don't try to dedupe them across bookings.
+    await this.assertParticipantsAvailable(participantUserIds, range);
 
     // If any user has the manager role, new bookings start as PENDING and a
     // manager has to approve them. With no manager, the original instant
@@ -256,30 +334,9 @@ export class ReservationService {
     ];
     const range = { startDate: input.startDate, endDate: input.endDate };
 
-    if (participantUserIds.length > 0) {
-      const userBusy = await this.db
-        .select({ id: reservations.id })
-        .from(reservations)
-        .where(
-          and(
-            inArray(reservations.userId, participantUserIds),
-            // Only a CONFIRMED stay blocks — a participant may sit in several
-            // PENDING requests at once (a manager picks which to approve).
-            eq(reservations.status, 'CONFIRMED'),
-            // Exclude this booking's own rows: they're about to be replaced, so
-            // they must not count as the participant being "busy".
-            ne(reservations.bookingId, bookingId),
-            lte(reservations.startDate, input.endDate),
-            gte(reservations.endDate, input.startDate),
-          ),
-        )
-        .all();
-      if (userBusy.length > 0) {
-        throw new ConflictError(
-          'One or more participants already have a reservation overlapping these dates',
-        );
-      }
-    }
+    // Exclude this booking's own rows: they're about to be replaced, so they
+    // must not count as the participant being "busy".
+    await this.assertParticipantsAvailable(participantUserIds, range, bookingId);
 
     const managers = await this.db
       .select({ id: users.id })
@@ -428,6 +485,7 @@ export class ReservationService {
       .where(eq(reservations.bookingId, bookingId))
       .all();
     if (rows.length === 0) throw new NotFoundError('Booking');
+    await this.assertPendingBookingCanBeConfirmed(bookingId);
     await this.db
       .update(reservations)
       .set({ status: 'CONFIRMED' })
@@ -515,6 +573,7 @@ export class ReservationService {
       .where(eq(reservations.bookingId, bookingId))
       .all();
     if (exists.length === 0) throw new NotFoundError('Booking');
+    await this.assertPendingBookingCanBeConfirmed(bookingId);
 
     const rejectedIds = await this.conflictingPendingBookings(bookingId);
 

@@ -7,6 +7,7 @@ import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { signIn } from '@/lib/auth/config';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
+import { isDemoMode } from '@/lib/demo-mode';
 import { hashPassword } from '@/lib/auth/password';
 import { rateLimit } from '@/lib/auth/rate-limit';
 import {
@@ -60,6 +61,13 @@ function constantTimeFloor(start: number): Promise<void> {
  * Nodemailer provider's `sendVerificationRequest` override.
  */
 export async function requestMagicLink(formData: FormData): Promise<MagicLinkResult> {
+  if (isDemoMode()) {
+    return {
+      ok: false,
+      message: 'Magic links are disabled in demo mode. Use password login.',
+    };
+  }
+
   const start = Date.now();
   const parsed = EmailSchema.safeParse(formData.get('email'));
   if (!parsed.success) {
@@ -77,9 +85,9 @@ export async function requestMagicLink(formData: FormData): Promise<MagicLinkRes
         redirectTo: '/dashboard',
       });
     } catch (err) {
-      // Don't leak Auth.js / SMTP failures to the user — log and fall through
-      // so the response stays uniform.
       console.error('[auth] requestMagicLink failed', err);
+      await constantTimeFloor(start);
+      return { ok: false, message: 'Could not send the sign-in email. Try again.' };
     }
   }
 
@@ -129,6 +137,13 @@ export async function credentialsLogin(formData: FormData): Promise<CredentialsR
  * used to discover which addresses are registered.
  */
 export async function requestPasswordReset(formData: FormData): Promise<MagicLinkResult> {
+  if (isDemoMode()) {
+    return {
+      ok: false,
+      message: 'Password reset emails are disabled in demo mode.',
+    };
+  }
+
   const start = Date.now();
   const parsed = EmailSchema.safeParse(formData.get('email'));
   if (!parsed.success) {
@@ -154,6 +169,8 @@ export async function requestPasswordReset(formData: FormData): Promise<MagicLin
         await mailer.sendResetPassword(parsed.data, url, locale, minted.expiresAt);
       } catch (err) {
         console.error('[auth] requestPasswordReset failed', err);
+        await constantTimeFloor(start);
+        return { ok: false, message: 'Could not send the password reset email. Try again.' };
       }
     }
   }

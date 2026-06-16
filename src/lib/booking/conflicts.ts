@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import type { DB } from '@/db/client';
+import { BED_CAPACITY, beds, reservations, rooms } from '@/db/schema';
+import type { DB } from '@/db/drizzle';
 import type { TargetSpec } from './types';
 
 /**
@@ -31,7 +32,115 @@ export interface ConflictChecker {
   ): Promise<boolean>;
 }
 
-export function createConflictChecker(database: DB): ConflictChecker {
+export function createConflictChecker(
+  database: DB,
+  options: { demoMode?: boolean } = {},
+): ConflictChecker {
+  if (options.demoMode) {
+    return {
+      async check(spec, range, options) {
+        const [reservationRows, bedRows, roomRows] = await Promise.all([
+          database.select().from(reservations).all(),
+          database.select().from(beds).all(),
+          database.select().from(rooms).all(),
+        ]);
+        const days: string[] = [];
+        const cursor = new Date(`${range.startDate}T00:00:00.000Z`);
+        const end = new Date(`${range.endDate}T00:00:00.000Z`);
+        while (cursor <= end) {
+          days.push(cursor.toISOString().slice(0, 10));
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+
+        const included = (bookingId: string | null) =>
+          !options?.excludeBookingId ||
+          bookingId == null ||
+          bookingId !== options.excludeBookingId;
+        const overlaps = (startDate: string, endDate: string) =>
+          startDate <= range.endDate && endDate >= range.startDate;
+        const confirmed = reservationRows.filter(
+          (row) =>
+            row.status === 'CONFIRMED' &&
+            included(row.bookingId) &&
+            overlaps(row.startDate, row.endDate),
+        );
+        const bedRoom = (bedId: string | null) =>
+          bedId ? bedRows.find((bed) => bed.id === bedId)?.roomId ?? null : null;
+        const roomCapacity = (roomId: string): number | null => {
+          const room = roomRows.find((r) => r.id === roomId);
+          if (!room) return 0;
+          if (room.capacityMode === 'SLOTS') return room.slotCount;
+          return bedRows
+            .filter((bed) => bed.roomId === roomId)
+            .reduce((sum, bed) => sum + BED_CAPACITY[bed.kind], 0);
+        };
+        const covers = (startDate: string, endDate: string, day: string) =>
+          startDate <= day && endDate >= day;
+
+        if (spec.kind === 'FULL_COTTAGE') return confirmed.length > 0;
+
+        if (spec.kind === 'ROOM') {
+          return confirmed.some(
+            (row) =>
+              row.targetKind === 'FULL_COTTAGE' ||
+              (row.targetKind === 'ROOM' && row.roomId === spec.roomId) ||
+              (row.targetKind === 'BED' && bedRoom(row.bedId) === spec.roomId) ||
+              (row.targetKind === 'SLOT' && row.roomId === spec.roomId),
+          );
+        }
+
+        if (spec.kind === 'BED') {
+          const roomId = bedRoom(spec.bedId);
+          if (!roomId) return false;
+          if (
+            confirmed.some(
+              (row) =>
+                row.targetKind === 'FULL_COTTAGE' ||
+                (row.targetKind === 'ROOM' && row.roomId === roomId),
+            )
+          ) {
+            return true;
+          }
+          const bed = bedRows.find((b) => b.id === spec.bedId);
+          const capacity = bed ? BED_CAPACITY[bed.kind] : 0;
+          const peak = days.reduce((max, day) => {
+            const taken = confirmed.filter(
+              (row) =>
+                row.targetKind === 'BED' &&
+                row.bedId === spec.bedId &&
+                covers(row.startDate, row.endDate, day),
+            ).length;
+            return Math.max(max, taken);
+          }, 0);
+          return peak >= capacity;
+        }
+
+        if (
+          confirmed.some(
+            (row) =>
+              row.targetKind === 'FULL_COTTAGE' ||
+              (row.targetKind === 'ROOM' && row.roomId === spec.roomId),
+          )
+        ) {
+          return true;
+        }
+        const capacity = roomCapacity(spec.roomId);
+        if (capacity == null) return false;
+        const peak = days.reduce((max, day) => {
+          const taken = confirmed.filter((row) => {
+            if (!covers(row.startDate, row.endDate, day)) return false;
+            if (row.targetKind === 'SLOT' || row.targetKind === 'ROOM') {
+              return row.roomId === spec.roomId;
+            }
+            return row.targetKind === 'BED' && bedRoom(row.bedId) === spec.roomId;
+          }).length;
+          return Math.max(max, taken);
+        }, 0);
+        return peak >= capacity;
+      },
+    };
+  }
+
   return {
     async check(spec, range, options) {
       const targetKind = spec.kind;

@@ -236,8 +236,9 @@ export function Dashboard({
 
 /**
  * One booking as an accordion. Header (status, dates, booker, person count,
- * actions) stays visible; the participant list collapses. Your own bookings and
- * any pending request start expanded; other people's approved stays collapsed.
+ * actions) stays visible; the participant list collapses. Your own bookings
+ * start expanded, and others' pending requests start expanded only for managers
+ * (who approve them); everything else starts collapsed.
  */
 function BookingGroupCard({
   g,
@@ -259,7 +260,10 @@ function BookingGroupCard({
   const isViewerBooker = g.bookerId === viewerId;
   const isParticipant = g.rows.some((r) => r.participantId === viewerId);
   const isMine = isViewerBooker || isParticipant;
-  const [open, setOpen] = React.useState(g.pending || isMine);
+  // Expand your own bookings (and your own pending requests). Others' pending
+  // requests only auto-expand for managers — they're the ones who act on them;
+  // for everyone else they start collapsed to keep the dashboard scannable.
+  const [open, setOpen] = React.useState(isMine || (g.pending && isManager));
 
   const canModify = isViewerBooker || isAdmin;
   const canDelete = isViewerBooker || isAdmin || isManager;

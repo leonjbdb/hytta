@@ -1,11 +1,44 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { resolve } from "node:path";
 
 const PREFERRED = 3000;
 const FALLBACK = 3002;
 const DO_PORT = 8799;
 const PERSIST = ".wrangler/state";
 const WRANGLER = "./node_modules/.bin/wrangler";
+const DEMO_ENV = "DEMO";
+
+function parseEnvFile(path: string): Record<string, string> {
+  if (!existsSync(path)) return {};
+
+  const env: Record<string, string> = {};
+  for (const rawLine of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(
+      line,
+    );
+    if (!match?.[1]) continue;
+
+    let value = (match[2] ?? "").trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    env[match[1]] = value;
+  }
+  return env;
+}
+
+function isDemo(): boolean {
+  const fileEnv = parseEnvFile(resolve(".env.local"));
+  return (process.env[DEMO_ENV] ?? fileEnv[DEMO_ENV] ?? "").trim().toLowerCase() === "true";
+}
 
 function isFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -16,37 +49,44 @@ function isFree(port: number): Promise<boolean> {
   });
 }
 
-// One local D1, shared by `next dev`, the BookingDO worker, and `db:*`. Apply
-// migrations first so a fresh checkout never starts against an empty schema.
-// Idempotent — already-applied migrations are skipped.
-console.log("Applying local D1 migrations…");
-const migrate = spawnSync(
-  WRANGLER,
-  ["d1", "migrations", "apply", "hytta", "--local", "--persist-to", PERSIST],
-  { stdio: "inherit" },
-);
-if (migrate.status !== 0) {
-  console.error("Local D1 migration failed — aborting dev start.");
-  process.exit(migrate.status ?? 1);
-}
+const demo = isDemo();
+let doWorker: ChildProcess | null = null;
 
-// Start the BookingDO worker on workerd. `next dev` reaches its Durable Object
-// cross-process via the wrangler dev registry, so bookings work in dev exactly
-// like production. It binds the same local D1 (same --persist-to).
-console.log(`Starting BookingDO worker (workerd) on port ${DO_PORT}…`);
-const doWorker = spawn(
-  WRANGLER,
-  [
-    "dev",
-    "--config",
-    "workers/booking-do/wrangler.jsonc",
-    "--port",
-    String(DO_PORT),
-    "--persist-to",
-    PERSIST,
-  ],
-  { stdio: "inherit" },
-);
+if (demo) {
+  console.log("DEMO=true: skipping local D1 migrations and BookingDO worker.");
+} else {
+  // One local D1, shared by `next dev`, the BookingDO worker, and `db:*`. Apply
+  // migrations first so a fresh checkout never starts against an empty schema.
+  // Idempotent — already-applied migrations are skipped.
+  console.log("Applying local D1 migrations…");
+  const migrate = spawnSync(
+    WRANGLER,
+    ["d1", "migrations", "apply", "hytta", "--local", "--persist-to", PERSIST],
+    { stdio: "inherit" },
+  );
+  if (migrate.status !== 0) {
+    console.error("Local D1 migration failed — aborting dev start.");
+    process.exit(migrate.status ?? 1);
+  }
+
+  // Start the BookingDO worker on workerd. `next dev` reaches its Durable Object
+  // cross-process via the wrangler dev registry, so bookings work in dev exactly
+  // like production. It binds the same local D1 (same --persist-to).
+  console.log(`Starting BookingDO worker (workerd) on port ${DO_PORT}…`);
+  doWorker = spawn(
+    WRANGLER,
+    [
+      "dev",
+      "--config",
+      "workers/booking-do/wrangler.jsonc",
+      "--port",
+      String(DO_PORT),
+      "--persist-to",
+      PERSIST,
+    ],
+    { stdio: "inherit" },
+  );
+}
 
 const port = (await isFree(PREFERRED)) ? PREFERRED : FALLBACK;
 console.log(`Starting Next.js dev on port ${port}…`);
@@ -58,7 +98,7 @@ const next = spawn("bun", ["--bun", "next", "dev", "-p", String(port)], {
 });
 
 // --- Lifecycle: run both, and when one exits bring the other down too. ---
-const children: ChildProcess[] = [doWorker, next];
+const children: ChildProcess[] = doWorker ? [doWorker, next] : [next];
 
 function shutdown(signal: NodeJS.Signals): void {
   for (const c of children) {

@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth/config';
 import { getDb } from '@/db/client';
 import { users } from '@/db/schema';
 import { bookingWrites } from '@/server/booking/booking-client';
+import { isDemoMode } from '@/lib/demo-mode';
 import {
   notifyBookingCancelled,
   notifyBookingRequest,
@@ -44,6 +45,7 @@ function toError(err: unknown): Extract<ActionResult, { ok: false }> {
   if (err instanceof BookingError) {
     return { ok: false, code: 'UNKNOWN', message: err.message };
   }
+  if (isDemoMode()) throw err;
   console.error('[reservations] unexpected error', err);
   return { ok: false, code: 'UNKNOWN', message: 'Something went wrong' };
 }

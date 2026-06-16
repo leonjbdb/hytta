@@ -11,6 +11,7 @@ import {
   isCottageConfigured,
   setCottageSettings,
 } from '@/lib/cottage';
+import { isDemoMode } from '@/lib/demo-mode';
 import { composeName } from '@/lib/name';
 
 export type SetupResult =
@@ -82,22 +83,23 @@ export async function completeCottageSetup(formData: FormData): Promise<SetupRes
     })
     .run();
 
+  let emailed = false;
+  if (!isDemoMode()) {
+    try {
+      await signIn('nodemailer', { email: adminEmail, redirect: false });
+      emailed = true;
+    } catch (err) {
+      console.error('[setup] could not send admin sign-in email', err);
+      return {
+        ok: false,
+        message: 'Could not send the admin sign-in email. Check email configuration and try again.',
+      };
+    }
+  }
+
   await setCottageSettings({ name, description });
   // The name flows into the brand, title, emails and feeds — bust the whole tree.
   revalidatePath('/', 'layout');
-
-  // Best-effort: email the admin a magic sign-in link so they can get in right
-  // away. Delivery is recommended, not enforced — if email isn't configured
-  // (or the send fails) setup still completes and the admin can sign in at
-  // /login. `signIn` mints the verification token and routes through the
-  // mailer; the magic-link provider only sends because the user now exists.
-  let emailed = false;
-  try {
-    await signIn('nodemailer', { email: adminEmail, redirect: false });
-    emailed = true;
-  } catch (err) {
-    console.error('[setup] could not send admin sign-in email', err);
-  }
 
   return { ok: true, emailed };
 }

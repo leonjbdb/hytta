@@ -1,4 +1,6 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { isDemoMode } from '@/lib/demo-mode';
+import { getDemoD1 } from './demo-d1';
 import { drizzleFor, type DB } from './drizzle';
 
 /**
@@ -18,7 +20,11 @@ export { drizzleFor, type DB };
 
 /** Request-scoped Drizzle client. Resolves the D1 binding from the request context. */
 export function getDb(): DB {
+  if (isDemoMode()) return drizzleFor(getDemoD1());
   const { env } = getCloudflareContext();
+  if (!env.DB) {
+    throw new Error('Missing Cloudflare D1 binding DB. Set DEMO=true or bind D1.');
+  }
   return drizzleFor(env.DB);
 }
 

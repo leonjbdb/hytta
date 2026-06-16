@@ -7,7 +7,10 @@ import { headers, cookies } from 'next/headers';
 import { auth, signIn } from '@/lib/auth/config';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
+import { DEMO_PASSWORD } from '@/lib/demo-constants';
+import { isDemoMode } from '@/lib/demo-mode';
 import { rateLimit } from '@/lib/auth/rate-limit';
+import { hashPassword } from '@/lib/auth/password';
 import { mailer } from '@/lib/email/service';
 import { requestOrigin } from '@/lib/origin';
 import { cottageNameOrApp } from '@/lib/cottage';
@@ -54,8 +57,8 @@ export type InviteRevokeResult =
   | { ok: false; code: 'AUTH' | 'NOT_FOUND'; message: string };
 
 export type InviteAcceptResult =
-  | { ok: true }
-  | { ok: false; code: 'TOKEN' | 'VALIDATION' | 'TAKEN' | 'RATE_LIMIT'; message: string };
+  | { ok: true; signedIn?: boolean }
+  | { ok: false; code: 'TOKEN' | 'VALIDATION' | 'TAKEN' | 'RATE_LIMIT' | 'EMAIL'; message: string };
 
 const EmailSchema = z
   .string()
@@ -120,6 +123,14 @@ export async function createInvite(input: unknown): Promise<InviteCreateResult> 
   }
 
   const email = parsed.data.email;
+  if (isDemoMode() && email) {
+    return {
+      ok: false,
+      code: 'VALIDATION',
+      message: 'Email invitations are disabled in demo mode. Create a shareable link instead.',
+    };
+  }
+
   if (email) {
     const taken = (await db
       .select({ id: users.id })
@@ -283,14 +294,28 @@ export async function acceptInvite(formData: FormData): Promise<InviteAcceptResu
     return { ok: false, code: 'TOKEN', message: 'This invitation is invalid or expired.' };
   }
 
-  // Create the user with the invitee flag so they can extend the chain.
-  // emailVerified stays NULL until they click the magic link.
+  // Create the user with the invitee flag so they can extend the chain. In
+  // demo mode the account is password-backed and verified immediately because
+  // there is no email delivery.
   await db.insert(users)
     .values({
       email,
       isInvitee: true,
+      passwordHash: isDemoMode() ? await hashPassword(DEMO_PASSWORD) : null,
+      emailVerified: isDemoMode() ? new Date() : null,
     })
     .run();
+
+  if (isDemoMode()) {
+    await signIn('credentials', {
+      email,
+      password: DEMO_PASSWORD,
+      redirect: false,
+      redirectTo: '/dashboard',
+    });
+    await constantTimeFloor(start);
+    return { ok: true, signedIn: true };
+  }
 
   try {
     await signIn('nodemailer', {
@@ -300,6 +325,12 @@ export async function acceptInvite(formData: FormData): Promise<InviteAcceptResu
     });
   } catch (err) {
     console.error('[invite] post-accept magic link failed', err);
+    await constantTimeFloor(start);
+    return {
+      ok: false,
+      code: 'EMAIL',
+      message: 'Could not send the sign-in email. Try again.',
+    };
   }
 
   await constantTimeFloor(start);

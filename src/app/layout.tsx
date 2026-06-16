@@ -9,6 +9,8 @@ import { cottageDescriptionOrDefault, cottageNameOrApp } from '@/lib/cottage';
 import { requestOrigin } from '@/lib/origin';
 import './globals.css';
 
+export const dynamic = 'force-dynamic';
+
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains-mono',

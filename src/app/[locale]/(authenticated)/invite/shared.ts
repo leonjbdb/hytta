@@ -21,4 +21,5 @@ export interface InviteListItem {
 export interface InviteProps {
   origin: string;
   invites: InviteListItem[];
+  demo: boolean;
 }

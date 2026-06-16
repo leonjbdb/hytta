@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -16,10 +16,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { credentialsLogin } from '@/server/actions/auth';
 
-export function Credentials() {
+interface DemoLoginAccount {
+  name: string;
+  email: string;
+  password: string;
+  role: 'adminManager' | 'member';
+}
+
+export function Credentials({
+  demoAccounts,
+}: {
+  demoAccounts: readonly DemoLoginAccount[];
+}) {
   const t = useTranslations('Auth');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showDemoLogins, setShowDemoLogins] = useState(false);
+  const demoMode = demoAccounts.length > 0;
 
   return (
     <div className="flex w-full justify-center px-2 py-4">
@@ -52,6 +67,8 @@ export function Credentials() {
                 name="email"
                 type="email"
                 autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
                 required
               />
             </div>
@@ -62,6 +79,8 @@ export function Credentials() {
                 name="password"
                 type="password"
                 autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 required
               />
             </div>
@@ -69,14 +88,59 @@ export function Credentials() {
               {t('credentialsCta')}
             </Button>
           </form>
-          <div className="flex flex-col gap-1.5 text-center text-xs text-[var(--muted-foreground)]">
-            <Link href="/login" className="underline-offset-4 hover:underline">
-              {t('magicLinkInsteadLink')}
-            </Link>
-            <Link href="/forgot-password" className="underline-offset-4 hover:underline">
-              {t('forgotPasswordLink')}
-            </Link>
-          </div>
+          {demoMode && (
+            <div className="flex flex-col gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                aria-expanded={showDemoLogins}
+                aria-controls="demo-login-list"
+                onClick={() => setShowDemoLogins((open) => !open)}
+              >
+                {showDemoLogins ? t('hideDemoLogins') : t('showDemoLogins')}
+              </Button>
+              {showDemoLogins && (
+                <div id="demo-login-list" className="grid gap-2">
+                  {demoAccounts.map((account) => (
+                    <button
+                      key={account.email}
+                      type="button"
+                      onClick={() => {
+                        setEmail(account.email);
+                        setPassword(account.password);
+                      }}
+                      className="rounded-sm border border-[#d6bd55] bg-[#fff1a8] p-3 text-left text-[#3a2a12] shadow-[0_8px_18px_rgba(58,42,18,0.14)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                    >
+                      <span className="block font-mono text-[11px] uppercase tracking-normal text-[#80661e]">
+                        {account.role === 'adminManager'
+                          ? t('demoRoleAdminManager')
+                          : t('demoRoleMember')}
+                      </span>
+                      <span className="mt-1 block text-sm font-semibold leading-tight">
+                        {account.name}
+                      </span>
+                      <span className="mt-2 block break-all font-mono text-xs leading-snug">
+                        {account.email}
+                      </span>
+                      <span className="mt-1 block font-mono text-xs leading-snug">
+                        {account.password}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {!demoMode && (
+            <div className="flex flex-col gap-1.5 text-center text-xs text-[var(--muted-foreground)]">
+              <Link href="/login" className="underline-offset-4 hover:underline">
+                {t('magicLinkInsteadLink')}
+              </Link>
+              <Link href="/forgot-password" className="underline-offset-4 hover:underline">
+                {t('forgotPasswordLink')}
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

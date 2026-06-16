@@ -1,7 +1,7 @@
-import 'server-only';
 import { cache } from 'react';
 import { db } from '@/db/client';
 import { rooms } from '@/db/schema';
+import { isDemoMode } from '@/lib/demo-mode';
 
 /**
  * Whether the cottage has at least one room. A freshly set-up cottage has none
@@ -14,7 +14,8 @@ export const hasAnyRoom = cache(async (): Promise<boolean> => {
   try {
     const rows = await db.select({ id: rooms.id }).from(rooms).limit(1).all();
     return rows.length > 0;
-  } catch {
+  } catch (err) {
+    if (isDemoMode()) throw err;
     return false;
   }
 });

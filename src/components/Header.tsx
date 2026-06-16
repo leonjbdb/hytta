@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { LogIn } from 'lucide-react';
@@ -36,21 +36,12 @@ export async function Header() {
   // row. Uses a sub-select on bookingId so multi-row bookings count once.
   let pendingCount = 0;
   if (session?.user?.isManager) {
-    const row = (await db.all<{ n: number }>(sql`
-      SELECT COUNT(DISTINCT booking_id) AS n
-      FROM reservation
-      WHERE status = 'PENDING' AND booking_id IS NOT NULL
-    `))[0];
-    pendingCount = Number(row?.n ?? 0);
-    if (pendingCount === 0) {
-      // Fallback for any legacy row without bookingId.
-      const orphan = await db
-        .select({ id: reservations.id })
-        .from(reservations)
-        .where(eq(reservations.status, 'PENDING'))
-        .all();
-      pendingCount = orphan.length;
-    }
+    const pendingRows = await db
+      .select({ id: reservations.id, bookingId: reservations.bookingId })
+      .from(reservations)
+      .where(eq(reservations.status, 'PENDING'))
+      .all();
+    pendingCount = new Set(pendingRows.map((row) => row.bookingId ?? row.id)).size;
   }
 
   async function signOutAction() {

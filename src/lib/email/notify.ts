@@ -1,7 +1,7 @@
-import 'server-only';
 import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { reservations, users } from '@/db/schema';
+import { isDemoMode } from '@/lib/demo-mode';
 import { mailer } from './service';
 import type { BookingStatus, Role } from './templates';
 
@@ -67,6 +67,7 @@ export async function notifyBookingStatus(
     if (!meta?.bookerId) return;
     await sendStatusToBooker(meta.bookerId, meta.startDate, meta.endDate, kind);
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[notify] booking status failed', err);
   }
 }
@@ -81,6 +82,7 @@ export async function notifyBookingCancelled(
     if (!meta?.bookerId || meta.bookerId === actorId) return;
     await sendStatusToBooker(meta.bookerId, meta.startDate, meta.endDate, 'cancelled');
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[notify] booking cancel failed', err);
   }
 }
@@ -103,6 +105,7 @@ export async function notifyReservationCancelled(
     if (!row?.bookerId || row.bookerId === actorId) return;
     await sendStatusToBooker(row.bookerId, row.startDate, row.endDate, 'cancelled');
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[notify] reservation cancel failed', err);
   }
 }
@@ -132,20 +135,24 @@ export async function notifyBookingRequest(bookingId: string): Promise<void> {
       .from(users)
       .where(and(...conditions))
       .all();
-    await Promise.allSettled(
-      managers
-        .filter((m): m is { email: string } => Boolean(m.email))
-        .map((m) =>
-          mailer.sendBookingRequest(
-            m.email,
-            bookerName,
-            meta.startDate,
-            meta.endDate,
-            NOTIFY_LOCALE,
-          ),
+    const sends = managers
+      .filter((m): m is { email: string } => Boolean(m.email))
+      .map((m) =>
+        mailer.sendBookingRequest(
+          m.email,
+          bookerName,
+          meta.startDate,
+          meta.endDate,
+          NOTIFY_LOCALE,
         ),
-    );
+      );
+    if (isDemoMode()) {
+      await Promise.all(sends);
+    } else {
+      await Promise.allSettled(sends);
+    }
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[notify] booking request failed', err);
   }
 }
@@ -165,6 +172,7 @@ export async function notifyRoleChanged(
     if (!u?.email || !u.notifyEnabled) return;
     await mailer.sendRoleChanged(u.email, role, granted, NOTIFY_LOCALE);
   } catch (err) {
+    if (isDemoMode()) throw err;
     console.error('[notify] role change failed', err);
   }
 }

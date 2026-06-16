@@ -24,8 +24,8 @@
  * Miniflare D1 store.
  *
  * Inserts:
- *   - cottage name "Granheim" (so the /setup gate is already satisfied)
- *   - 4 demo members, all sharing the same password (printed at the end)
+ *   - cottage name "The Dwarfs' Cottage" (so the /setup gate is already satisfied)
+ *   - 8 demo members, all sharing the same password (printed at the end)
  *   - 4 rooms (3 bed-based, 1 slot-based) with their beds, coloured from the
  *     real selectable palette (see ROOM_COLOR_PALETTE)
  *   - bookings covering every state across a relative past/future timeline:
@@ -36,8 +36,10 @@
  *   - a few dugnad (chores), one completed by someone other than its creator
  *   - two group templates (one with a guest member)
  */
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { getPlatformProxy, type GetPlatformProxyOptions } from 'wrangler';
-import { drizzleFor, type DB } from './client';
+import { drizzleFor, type DB } from './drizzle';
 import {
   beds,
   cottageSettings,
@@ -51,13 +53,42 @@ import {
 } from './schema';
 import { hashPassword } from '@/lib/auth/password';
 
-const COTTAGE_NAME = 'Granheim';
+const COTTAGE_NAME = "The Dwarfs' Cottage";
 
 const LOCAL_PLATFORM_PROXY_OPTIONS = {
   remoteBindings: false,
 } satisfies GetPlatformProxyOptions;
 
 const BLOCKED_ENV_VARS = ['CF_PAGES', 'CLOUDFLARE_ENV'] as const;
+const DEMO_ENV = 'DEMO';
+
+function parseEnvFile(path: string): Record<string, string> {
+  if (!existsSync(path)) return {};
+
+  const parsed: Record<string, string> = {};
+  for (const rawLine of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!match?.[1]) continue;
+
+    let value = (match[2] ?? '').trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    parsed[match[1]] = value;
+  }
+  return parsed;
+}
+
+function isDemoEnv(): boolean {
+  const fileEnv = parseEnvFile(resolve('.env.local'));
+  return (process.env[DEMO_ENV] ?? fileEnv[DEMO_ENV] ?? '').trim().toLowerCase() === 'true';
+}
 
 function assertLocalDemoRun(): void {
   const blocked: string[] = BLOCKED_ENV_VARS.filter((name) =>
@@ -65,12 +96,13 @@ function assertLocalDemoRun(): void {
   );
   if (process.env.CI && process.env.CI !== 'false') blocked.push('CI');
   if (process.env.NODE_ENV === 'production') blocked.push('NODE_ENV=production');
+  if (isDemoEnv()) blocked.push('DEMO=true');
 
   if (blocked.length > 0) {
     throw new Error(
       'Refusing to load demo data outside local development. ' +
         `Blocked by: ${blocked.join(', ')}. ` +
-        'Use the production /setup flow instead.',
+        'Use cache-only demo mode or the production /setup flow instead.',
     );
   }
 }
@@ -93,10 +125,14 @@ interface DemoUser {
 }
 
 const DEMO_USERS: DemoUser[] = [
-  { id: 'demo-astrid', email: 'astrid@example.com', firstName: 'Astrid', lastName: 'Solberg', isAdmin: true, isManager: true },
-  { id: 'demo-henrik', email: 'henrik@example.com', firstName: 'Henrik', lastName: 'Dahl' },
-  { id: 'demo-maja', email: 'maja@example.com', firstName: 'Maja', lastName: 'Lindqvist' },
-  { id: 'demo-jonas', email: 'jonas@example.com', firstName: 'Jonas', lastName: 'Vik' },
+  { id: 'demo-snow-white', email: 'snow.white@example.com', firstName: 'Snow', lastName: 'White', isAdmin: true, isManager: true },
+  { id: 'demo-doc', email: 'doc@example.com', firstName: 'Doc', lastName: 'Chef' },
+  { id: 'demo-grumpy', email: 'grumpy@example.com', firstName: 'Grumpy', lastName: 'Brummbär' },
+  { id: 'demo-happy', email: 'happy@example.com', firstName: 'Happy', lastName: 'Happy' },
+  { id: 'demo-sleepy', email: 'sleepy@example.com', firstName: 'Sleepy', lastName: 'Schlafmütz' },
+  { id: 'demo-bashful', email: 'bashful@example.com', firstName: 'Bashful', lastName: 'Pimpel' },
+  { id: 'demo-sneezy', email: 'sneezy@example.com', firstName: 'Sneezy', lastName: 'Hatschi' },
+  { id: 'demo-dopey', email: 'dopey@example.com', firstName: 'Dopey', lastName: 'Seppl' },
 ];
 
 interface DemoRoom {
@@ -176,7 +212,12 @@ interface DemoBooking {
 const HISTORICAL_DEMO_BOOKING_COUNT = 220;
 const HISTORICAL_START_OFFSET = -760;
 const HISTORICAL_STEP_DAYS = 2;
-const DEMO_GUEST_NAMES = ['Ola Nordmann', 'Kari Berg', 'Per Lie', 'Eli Moen'] as const;
+const DEMO_GUEST_NAMES = [
+  'The Huntsman',
+  'Woodland Friend',
+  'Forest Visitor',
+  'Castle Messenger',
+] as const;
 
 function demoUserIdAt(index: number): string {
   const user = DEMO_USERS[index % DEMO_USERS.length];
@@ -214,10 +255,10 @@ function generateHistoricalDemoBookings(): DemoBooking[] {
 
     if (i % 9 === 0) {
       bookings.push(
-        { id: `${id}-loft`, bookingId: id, bookerId: 'demo-astrid', userId: demoUserIdAt(i), targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset, endOffset, status: 'CONFIRMED' },
-        { id: `${id}-hems`, bookingId: id, bookerId: 'demo-astrid', userId: demoUserIdAt(i + 1), targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset, endOffset, status: 'CONFIRMED' },
-        { id: `${id}-annex`, bookingId: id, bookerId: 'demo-astrid', userId: demoUserIdAt(i + 2), targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset, endOffset, status: 'CONFIRMED' },
-        { id: `${id}-stua`, bookingId: id, bookerId: 'demo-astrid', guestName: demoGuestNameAt(i), targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-loft`, bookingId: id, bookerId: 'demo-snow-white', userId: demoUserIdAt(i), targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-hems`, bookingId: id, bookerId: 'demo-snow-white', userId: demoUserIdAt(i + 1), targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-annex`, bookingId: id, bookerId: 'demo-snow-white', userId: demoUserIdAt(i + 2), targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset, endOffset, status: 'CONFIRMED' },
+        { id: `${id}-stua`, bookingId: id, bookerId: 'demo-snow-white', guestName: demoGuestNameAt(i), targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset, endOffset, status: 'CONFIRMED' },
       );
       continue;
     }
@@ -249,58 +290,59 @@ function generateHistoricalDemoBookings(): DemoBooking[] {
 const CURATED_DEMO_BOOKINGS: DemoBooking[] = [
   /* --- established past usage --- */
   // A whole-cottage winter stay by one member.
-  { id: 'demo-res-full', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'FULL_COTTAGE', startOffset: -132, endOffset: -129, status: 'CONFIRMED' },
+  { id: 'demo-res-full', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'FULL_COTTAGE', startOffset: -132, endOffset: -129, status: 'CONFIRMED' },
 
   // A busy old weekend where every area has someone in it.
-  { id: 'demo-res-winter-loft', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
-  { id: 'demo-res-winter-hems', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
-  { id: 'demo-res-winter-annex', bookerId: 'demo-henrik', guestName: 'Ola Nordmann', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
-  { id: 'demo-res-winter-stua', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+  { id: 'demo-res-winter-loft', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+  { id: 'demo-res-winter-hems', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+  { id: 'demo-res-winter-annex', bookerId: 'demo-doc', guestName: 'The Huntsman', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
+  { id: 'demo-res-winter-stua', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: -116, endOffset: -114, status: 'CONFIRMED' },
 
   // Another whole-cottage stay by one person, a few weeks later.
-  { id: 'demo-res-spring-full-henrik', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'FULL_COTTAGE', startOffset: -94, endOffset: -91, status: 'CONFIRMED' },
+  { id: 'demo-res-spring-full-doc', bookerId: 'demo-doc', userId: 'demo-doc', targetKind: 'FULL_COTTAGE', startOffset: -94, endOffset: -91, status: 'CONFIRMED' },
 
   // Partial cottage use: a room and a slot at the same time.
-  { id: 'demo-res-spring-annex', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -72, endOffset: -70, status: 'CONFIRMED' },
-  { id: 'demo-res-slot', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: -72, endOffset: -70, status: 'CONFIRMED' },
+  { id: 'demo-res-spring-annex', bookerId: 'demo-doc', userId: 'demo-doc', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -72, endOffset: -70, status: 'CONFIRMED' },
+  { id: 'demo-res-slot', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: -72, endOffset: -70, status: 'CONFIRMED' },
 
-  // Two friends (guests, no accounts) sharing the annex, booked by the admin.
-  { id: 'demo-res-friends-1', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Ola Nordmann', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -48, endOffset: -46, status: 'CONFIRMED' },
-  { id: 'demo-res-friends-2', bookingId: 'demo-bk-friends', bookerId: 'demo-astrid', guestName: 'Kari Berg', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: -48, endOffset: -46, status: 'CONFIRMED' },
+  // Two friends (guests, no accounts) sharing the annex's double bed (one each
+  // side — a double sleeps two), booked together by Snow White.
+  { id: 'demo-res-friends-1', bookingId: 'demo-bk-friends', bookerId: 'demo-snow-white', guestName: 'The Huntsman', targetKind: 'BED', bedId: 'demo-bed-anneks-d', startOffset: -48, endOffset: -46, status: 'CONFIRMED' },
+  { id: 'demo-res-friends-2', bookingId: 'demo-bk-friends', bookerId: 'demo-snow-white', guestName: 'Woodland Friend', targetKind: 'BED', bedId: 'demo-bed-anneks-d', startOffset: -48, endOffset: -46, status: 'CONFIRMED' },
 
   // A recent partly used weekend across different areas.
-  { id: 'demo-res-recent-loft', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
-  { id: 'demo-res-recent-hems', bookerId: 'demo-maja', guestName: 'Per Lie', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
+  { id: 'demo-res-recent-loft', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
+  { id: 'demo-res-recent-hems', bookerId: 'demo-grumpy', guestName: 'Forest Visitor', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: -28, endOffset: -26, status: 'CONFIRMED' },
 
   /* --- future confirmed bookings --- */
   // A long weekend in one specific bed. Avoid whole-room rows for one member
   // here, because the occupancy UI can make that look like the same person is
   // assigned to multiple beds in the room.
-  { id: 'demo-res-loft', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'BED', bedId: 'demo-bed-loft-s', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
+  { id: 'demo-res-loft', bookerId: 'demo-doc', userId: 'demo-doc', targetKind: 'BED', bedId: 'demo-bed-loft-s', startOffset: 5, endOffset: 8, status: 'CONFIRMED' },
 
   // A future whole-cottage stay by one member.
-  { id: 'demo-res-summer-full-maja', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'FULL_COTTAGE', startOffset: 24, endOffset: 27, status: 'CONFIRMED' },
+  { id: 'demo-res-summer-full-grumpy', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'FULL_COTTAGE', startOffset: 24, endOffset: 27, status: 'CONFIRMED' },
 
   // Another busy future weekend where every area has someone in it.
-  { id: 'demo-res-future-loft', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
-  { id: 'demo-res-future-hems', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
-  { id: 'demo-res-future-annex', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
-  { id: 'demo-res-future-stua', bookerId: 'demo-henrik', guestName: 'Kari Berg', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+  { id: 'demo-res-future-loft', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'BED', bedId: 'demo-bed-loft-d', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+  { id: 'demo-res-future-hems', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+  { id: 'demo-res-future-annex', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'ROOM', roomId: 'demo-room-anneks', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
+  { id: 'demo-res-future-stua', bookerId: 'demo-doc', guestName: 'Woodland Friend', targetKind: 'SLOT', roomId: 'demo-room-stua', startOffset: 42, endOffset: 44, status: 'CONFIRMED' },
 
   // A whole-cottage stay for three: two members and a guest.
-  { id: 'demo-res-fam-astrid', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', userId: 'demo-astrid', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
-  { id: 'demo-res-fam-maja', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', userId: 'demo-maja', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
-  { id: 'demo-res-fam-guest', bookingId: 'demo-bk-fam', bookerId: 'demo-astrid', guestName: 'Per Lie', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
+  { id: 'demo-res-fam-snow-white', bookingId: 'demo-bk-fam', bookerId: 'demo-snow-white', userId: 'demo-snow-white', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
+  { id: 'demo-res-fam-grumpy', bookingId: 'demo-bk-fam', bookerId: 'demo-snow-white', userId: 'demo-grumpy', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
+  { id: 'demo-res-fam-guest', bookingId: 'demo-bk-fam', bookerId: 'demo-snow-white', guestName: 'Forest Visitor', targetKind: 'FULL_COTTAGE', startOffset: 60, endOffset: 64, status: 'CONFIRMED' },
 
   /* --- pending requests --- */
   // A standalone request awaiting approval — conflicts with nothing.
-  { id: 'demo-res-bed', bookerId: 'demo-maja', userId: 'demo-maja', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 5, endOffset: 6, status: 'PENDING' },
+  { id: 'demo-res-bed', bookerId: 'demo-grumpy', userId: 'demo-grumpy', targetKind: 'BED', bedId: 'demo-bed-hems-1', startOffset: 5, endOffset: 6, status: 'PENDING' },
   // Two requests that CONFLICT: same single bed, overlapping dates, both pending.
-  { id: 'demo-res-conflict-a', bookerId: 'demo-henrik', userId: 'demo-henrik', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 14, endOffset: 17, status: 'PENDING' },
-  { id: 'demo-res-conflict-b', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 15, endOffset: 18, status: 'PENDING' },
+  { id: 'demo-res-conflict-a', bookerId: 'demo-doc', userId: 'demo-doc', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 14, endOffset: 17, status: 'PENDING' },
+  { id: 'demo-res-conflict-b', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'BED', bedId: 'demo-bed-hems-2', startOffset: 15, endOffset: 18, status: 'PENDING' },
 
   /* --- a cancelled booking, for the cancelled state --- */
-  { id: 'demo-res-cancelled', bookerId: 'demo-jonas', userId: 'demo-jonas', targetKind: 'ROOM', roomId: 'demo-room-loft', startOffset: -4, endOffset: -2, status: 'CANCELLED' },
+  { id: 'demo-res-cancelled', bookerId: 'demo-happy', userId: 'demo-happy', targetKind: 'ROOM', roomId: 'demo-room-loft', startOffset: -4, endOffset: -2, status: 'CANCELLED' },
 ];
 
 const DEMO_BOOKINGS: DemoBooking[] = [
@@ -395,7 +437,7 @@ const DEMO_DUGNAD: DemoDugnad[] = [
     description:
       'Boden trenger en opprydding før sesongen. Sorter verktøy, fe'
       + 'i gulvet og kast det som er ødelagt. Regn med en times tid.',
-    createdBy: 'demo-astrid',
+    createdBy: 'demo-snow-white',
   },
   {
     id: 'demo-dugnad-roykvarsler',
@@ -403,8 +445,8 @@ const DEMO_DUGNAD: DemoDugnad[] = [
     description:
       'Test alle røykvarslerne og bytt batteri ved behov. Sjekk at '
       + 'brannslukkeren ikke er utgått. Nye batterier ligger i kjøkkenskuffen.',
-    createdBy: 'demo-henrik',
-    completedBy: 'demo-henrik',
+    createdBy: 'demo-doc',
+    completedBy: 'demo-doc',
     completedDaysAgo: 9,
   },
   {
@@ -413,10 +455,10 @@ const DEMO_DUGNAD: DemoDugnad[] = [
     description:
       'Kost bort vinterskitt fra verandaen og hent hagemøblene fram fra boden. '
       + 'Putene ligger i den blå plastkassen.',
-    createdBy: 'demo-maja',
+    createdBy: 'demo-grumpy',
     // Completed by someone other than the creator — exercises the "done, by
     // another member" state (and the relaxed dugnad_completed_shape check).
-    completedBy: 'demo-jonas',
+    completedBy: 'demo-happy',
     completedDaysAgo: 3,
   },
   {
@@ -425,7 +467,7 @@ const DEMO_DUGNAD: DemoDugnad[] = [
     description:
       'Skru på hovedstoppekranen, slipp opp lufta i springene og se etter '
       + 'lekkasjer under vasken og ved varmtvannsberederen.',
-    createdBy: 'demo-astrid',
+    createdBy: 'demo-snow-white',
   },
 ];
 
@@ -450,23 +492,23 @@ const DEMO_GROUPS: DemoGroup[] = [
   // duplicate rows to an already-seeded instance.
   {
     id: 'demo-group-fam',
-    name: 'Familien Solberg',
-    createdBy: 'demo-astrid',
+    name: 'Cottage Household',
+    createdBy: 'demo-snow-white',
     members: [
-      { id: 'demo-gm-astrid', userId: 'demo-astrid', preferredRoomId: 'demo-room-loft' },
-      { id: 'demo-gm-henrik', userId: 'demo-henrik', preferredRoomId: 'demo-room-hems' },
-      { id: 'demo-gm-maja', userId: 'demo-maja', preferredRoomId: 'demo-room-anneks' },
+      { id: 'demo-gm-snow-white', userId: 'demo-snow-white', preferredRoomId: 'demo-room-loft' },
+      { id: 'demo-gm-doc', userId: 'demo-doc', preferredRoomId: 'demo-room-hems' },
+      { id: 'demo-gm-grumpy', userId: 'demo-grumpy', preferredRoomId: 'demo-room-anneks' },
     ],
   },
   // A second group with a guest member, to exercise mixed user/guest groups.
   {
     id: 'demo-group-venner',
-    name: 'Vennegjengen',
-    createdBy: 'demo-henrik',
+    name: 'Mine Crew',
+    createdBy: 'demo-doc',
     members: [
-      { id: 'demo-gm-venner-henrik', userId: 'demo-henrik', preferredRoomId: 'demo-room-loft', preferredBedId: 'demo-bed-loft-s' },
-      { id: 'demo-gm-venner-jonas', userId: 'demo-jonas', preferredRoomId: 'demo-room-stua' },
-      { id: 'demo-gm-venner-guest', guestName: 'Kari Berg' },
+      { id: 'demo-gm-crew-doc', userId: 'demo-doc', preferredRoomId: 'demo-room-loft', preferredBedId: 'demo-bed-loft-s' },
+      { id: 'demo-gm-crew-happy', userId: 'demo-happy', preferredRoomId: 'demo-room-stua' },
+      { id: 'demo-gm-crew-guest', guestName: 'Woodland Friend' },
     ],
   },
 ];
@@ -485,15 +527,15 @@ interface DemoInvite {
   revokedDaysAgo?: number;
 }
 
-// Every invite is sent by the admin (Astrid), covering each lifecycle state.
+// Every invite is sent by the admin (Snow White), covering each lifecycle state.
 const DEMO_INVITES: DemoInvite[] = [
   // An open, shareable multi-use link — partly used, still active.
   { id: 'demo-inv-link', token: 'demo-invite-open-link', maxUses: 10, useCount: 3, expiresInDays: 30 },
   // Email-bound invites awaiting their recipient (single-use, unused).
-  { id: 'demo-inv-kari', token: 'demo-invite-kari', email: 'kari@example.com', maxUses: 1, useCount: 0, expiresInDays: 14 },
-  { id: 'demo-inv-per', token: 'demo-invite-per', email: 'per@example.com', maxUses: 1, useCount: 0, expiresInDays: 14 },
+  { id: 'demo-inv-huntsman', token: 'demo-invite-huntsman', email: 'huntsman@example.com', maxUses: 1, useCount: 0, expiresInDays: 14 },
+  { id: 'demo-inv-forest-friend', token: 'demo-invite-forest-friend', email: 'forest.friend@example.com', maxUses: 1, useCount: 0, expiresInDays: 14 },
   // An expired invite that was never accepted.
-  { id: 'demo-inv-expired', token: 'demo-invite-expired', email: 'gammel@example.com', maxUses: 1, useCount: 0, expiresInDays: -3 },
+  { id: 'demo-inv-expired', token: 'demo-invite-expired', email: 'old.invite@example.com', maxUses: 1, useCount: 0, expiresInDays: -3 },
   // A revoked invite.
   { id: 'demo-inv-revoked', token: 'demo-invite-revoked', maxUses: 5, useCount: 1, expiresInDays: 30, revokedDaysAgo: 1 },
 ];
@@ -653,7 +695,7 @@ async function loadInvites(db: DB): Promise<void> {
       .values({
         id: inv.id,
         token: inv.token,
-        createdBy: 'demo-astrid',
+        createdBy: 'demo-snow-white',
         maxUses: inv.maxUses ?? null,
         useCount: inv.useCount ?? 0,
         email: inv.email ?? null,
@@ -669,6 +711,9 @@ async function loadInvites(db: DB): Promise<void> {
 async function main() {
   assertLocalDemoRun();
   const platform = await getPlatformProxy<CloudflareEnv>(LOCAL_PLATFORM_PROXY_OPTIONS);
+  if (!platform.env.DB) {
+    throw new Error('Missing local D1 binding DB for demo loader.');
+  }
   const db = drizzleFor(platform.env.DB);
   try {
     console.log('[demo] cottage…');

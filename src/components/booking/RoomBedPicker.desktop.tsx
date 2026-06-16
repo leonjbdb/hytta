@@ -17,11 +17,9 @@ import {
 import { cn } from '@/lib/utils';
 import type { AvailabilityTarget, BedOccupancy, OccupantRef, PendingRef } from '@/lib/booking/types';
 import { roomLabel } from '@/lib/booking/room-label';
-import { formatStay } from '@/lib/booking/format-stay';
 import { FullCottageShape, RoomIcon } from './RoomIcon';
 import { PendingDot } from './PendingDot';
-import { PersonBadge } from '@/components/PersonBadge';
-import { BookedByMultiple } from './BookedByMultiple';
+import { BookedOccupants } from './BookedOccupants';
 import { BookedUsersContext, collectBookedUserIds, useBookedUsers } from './booked-users';
 import { SearchableSelect, type ComboOption } from './SearchableSelect';
 
@@ -709,21 +707,11 @@ export function RoomBedPicker({
               >
                 {info.takenBy.length > 0 && (
                   // Slots already held by others — greyed box (muted bg, no
-                  // opacity so the tooltips stay crisp). One person → badge;
-                  // several distinct people → a "multiple people" label whose
-                  // tooltip lists who and when (e.g. two back-to-back stays).
+                  // opacity so the tooltips stay crisp). Everyone who fits within
+                  // capacity gets their own badge; only more people than capacity
+                  // (back-to-back stays) collapse to a "multiple people" label.
                   <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 p-2">
-                    {new Set(info.takenBy.map((o) => o.name)).size > 1 ? (
-                      <BookedByMultiple occupants={info.takenBy} />
-                    ) : (
-                      <PersonBadge
-                        name={info.takenBy[0]!.name}
-                        isGuest={info.takenBy[0]!.isGuest}
-                        isAdmin={info.takenBy[0]!.isAdmin}
-                        isManager={info.takenBy[0]!.isManager}
-                        when={formatStay(info.takenBy[0]!, locale)}
-                      />
-                    )}
+                    <BookedOccupants occupants={info.takenBy} capacity={capacity} />
                   </div>
                 )}
                 <ParticipantList
@@ -1194,7 +1182,6 @@ function BedBox({
   onRemove: (index: number) => void;
 }) {
   const t = useTranslations('Book');
-  const locale = useLocale();
   // Seats free for me = capacity − others' peak. Doubles are shareable, so a
   // double with one other occupant still leaves a seat I can add to.
   const freeForMe = Math.max(0, capacity - takenByOthers);
@@ -1212,21 +1199,12 @@ function BedBox({
   const onlyOthers = hasOthers && occupants.length === 0 && freeForMe === 0;
 
   const othersBadge = hasOthers ? (
-    // Muted sub-row naming who holds the bed. One holder → badge (+ when on
-    // hover). Several distinct people across the range → a "multiple people"
-    // label whose tooltip lists who and when. No `opacity` so tooltips stay crisp.
+    // Muted sub-row naming who holds the bed. Each holder gets their own badge
+    // (so two people sharing a double both show); only more distinct people than
+    // the bed's capacity — back-to-back stays — collapse to a "multiple people"
+    // label. No `opacity` so tooltips stay crisp.
     <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--muted)]/50 px-1.5 py-1">
-      {new Set(takenBy.map((o) => o.name)).size > 1 ? (
-        <BookedByMultiple occupants={takenBy} />
-      ) : (
-        <PersonBadge
-          name={takenBy[0]!.name}
-          isGuest={takenBy[0]!.isGuest}
-          isAdmin={takenBy[0]!.isAdmin}
-          isManager={takenBy[0]!.isManager}
-          when={formatStay(takenBy[0]!, locale)}
-        />
-      )}
+      <BookedOccupants occupants={takenBy} capacity={capacity} />
     </div>
   ) : null;
 

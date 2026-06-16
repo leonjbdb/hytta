@@ -7,6 +7,8 @@ import { getDb } from '@/db/client';
 import { users } from '@/db/schema';
 import { bookingWrites } from '@/server/booking/booking-client';
 import { notifyBookingStatus } from '@/lib/email/notify';
+import { BookingError } from '@/lib/booking/errors';
+import { isDemoMode } from '@/lib/demo-mode';
 
 export type RequestActionResult =
   | { ok: true }
@@ -48,6 +50,7 @@ export async function approveBooking(bookingId: string): Promise<RequestActionRe
     revalidateBookingViews();
     return { ok: true };
   } catch (err) {
+    if (isDemoMode() && !(err instanceof BookingError)) throw err;
     console.error('[requests] approve failed', err);
     return { ok: false, code: 'UNKNOWN', message: 'Approve failed' };
   }
@@ -65,6 +68,7 @@ export async function rejectBooking(bookingId: string): Promise<RequestActionRes
     revalidateBookingViews();
     return { ok: true };
   } catch (err) {
+    if (isDemoMode() && !(err instanceof BookingError)) throw err;
     console.error('[requests] reject failed', err);
     return { ok: false, code: 'UNKNOWN', message: 'Reject failed' };
   }

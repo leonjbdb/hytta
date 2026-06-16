@@ -1,8 +1,8 @@
-import 'server-only';
 import { eq } from 'drizzle-orm';
 import { cache } from 'react';
 import { db } from '@/db/client';
 import { cottageSettings } from '@/db/schema';
+import { isDemoMode } from '@/lib/demo-mode';
 
 // Re-exported so server callers can keep importing limits from `@/lib/cottage`.
 // The canonical home is the client-safe `cottage-limits` module.
@@ -38,7 +38,8 @@ export const getCottageName = cache(async (): Promise<string | null> => {
     )[0];
     const name = row?.name?.trim();
     return name && name.length > 0 ? name : null;
-  } catch {
+  } catch (err) {
+    if (isDemoMode()) throw err;
     return null;
   }
 });
@@ -64,7 +65,8 @@ export const getCottageDescription = cache(async (): Promise<string | null> => {
     )[0];
     const description = row?.description?.trim();
     return description && description.length > 0 ? description : null;
-  } catch {
+  } catch (err) {
+    if (isDemoMode()) throw err;
     return null;
   }
 });

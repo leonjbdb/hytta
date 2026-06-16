@@ -32,6 +32,9 @@ export class BookingDO extends DurableObject<CloudflareEnv> {
 
   constructor(ctx: DurableObjectState, env: CloudflareEnv) {
     super(ctx, env);
+    if (!env.DB) {
+      throw new Error('Missing Cloudflare D1 binding DB for BookingDO.');
+    }
     this.svc = new ReservationService(drizzleFor(env.DB));
   }
 

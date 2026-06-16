@@ -47,7 +47,7 @@ export function AcceptInvite({
                   toast.error(r.message);
                   return;
                 }
-                router.push('/login/check-email');
+                router.push(r.signedIn ? '/dashboard' : '/login/check-email');
               });
             }}
           >

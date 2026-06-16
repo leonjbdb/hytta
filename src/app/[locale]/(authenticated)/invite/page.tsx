@@ -3,6 +3,7 @@ import { getFormatter, setRequestLocale } from 'next-intl/server';
 import { auth } from '@/lib/auth/config';
 import { db } from '@/db/client';
 import { listUserInvitations } from '@/lib/auth/invitations';
+import { isDemoMode } from '@/lib/demo-mode';
 import { requestOrigin } from '@/lib/origin';
 import { pickVariant } from '@/lib/device/pick';
 import { Invite as InviteDesktop } from './desktop/Invite';
@@ -43,10 +44,11 @@ export default async function InvitePage({
   }));
 
   const origin = await requestOrigin();
+  const demo = isDemoMode();
 
   return pickVariant({
     desktop: InviteDesktop,
     mobile: InviteMobile,
-    props: { origin, invites },
+    props: { origin, invites, demo },
   });
 }
