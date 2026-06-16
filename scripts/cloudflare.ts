@@ -233,6 +233,13 @@ switch (command) {
     break;
 
   case "build":
+    // The build only needs to compile — runtime secrets (AUTH_SECRET, AUTH_URL,
+    // …) live as Worker variables and are absent from the build environment
+    // (e.g. Cloudflare Workers Builds). env.ts validates process.env at module
+    // load, which `next build` triggers while collecting page data, so without
+    // this the build dies on missing secrets. The Worker still validates at
+    // runtime, where the real values exist.
+    process.env.SKIP_ENV_VALIDATION = "1";
     run("bunx", ["opennextjs-cloudflare", "build", "--config", configs.app.generated]);
     break;
 
