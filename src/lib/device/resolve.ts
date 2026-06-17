@@ -1,10 +1,10 @@
 import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
+import { DEVICE_OVERRIDE_COOKIE, type DeviceVariant } from './variant';
 
-export type DeviceVariant = 'mobile' | 'desktop';
-
-/** Cookie name that lets a user (or QA) pin the variant regardless of UA. */
-export const DEVICE_OVERRIDE_COOKIE = 'hytta-device';
+// Re-exported so existing server-side importers can keep reading these from
+// `./resolve`; the canonical (client-safe) definitions live in `./variant`.
+export { DEVICE_OVERRIDE_COOKIE, type DeviceVariant };
 
 /**
  * Tiny User-Agent classifier. Designed for a private, self-hosted app — not a

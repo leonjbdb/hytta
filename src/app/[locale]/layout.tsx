@@ -5,7 +5,9 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AppToaster } from '@/components/AppToaster';
 import { ClientI18nProvider } from '@/components/ClientI18nProvider';
 import { DemoModeToasts } from '@/components/DemoModeToasts';
+import { DeviceVariantSync } from '@/components/DeviceVariantSync';
 import { QueryProvider } from '@/components/QueryProvider';
+import { resolveDeviceVariant } from '@/lib/device/resolve';
 import { routing } from '@/i18n/routing';
 import { cottageNameOrApp } from '@/lib/cottage';
 import { getDemoResetInfo, isDemoMode } from '@/lib/demo-mode';
@@ -48,6 +50,10 @@ export default async function LocaleLayout({
 
   const demo = isDemoMode();
   if (!demo) await reconcileTestUser();
+  // The variant `pickVariant` resolved for this request's page body. Handed to
+  // the client so it can correct the body if the viewport later disagrees (a
+  // desktop→mobile switch without a refresh). Shares the cached UA read.
+  const deviceVariant = await resolveDeviceVariant();
   const cottageName = await cottageNameOrApp();
   const demoReset = demo ? getDemoResetInfo() : null;
   const messagesByLocale: Record<string, Record<string, unknown>> = {
@@ -63,6 +69,7 @@ export default async function LocaleLayout({
     >
       <QueryProvider>
         <ThemeProvider>
+          <DeviceVariantSync variant={deviceVariant} />
           {children}
           <AppToaster />
           {demoReset && <DemoModeToasts resetAt={demoReset.resetAt} />}

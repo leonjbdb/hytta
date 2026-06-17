@@ -56,7 +56,18 @@ export default async function AuthenticatedLayout({
     <ConfirmProvider delaySeconds={confirmDelay}>
     <div className="flex h-svh flex-col">
       <Header />
-      <div className="flex-1 overflow-y-auto">
+      {/*
+       * Clip the cross axis: this region scrolls vertically only. Page content
+       * is sized to the viewport (the correct device variant renders for the
+       * width — see DeviceVariantSync), so nothing meaningful is cut; this just
+       * stops a stray off-screen decoration — e.g. a calendar day's hover
+       * tooltip (`absolute left-1/2 -translate-x-1/2`, hidden on touch) poking
+       * a few px past a right-edge cell — from making the page swipe sideways.
+       * `overflow-y-auto` alone leaves x as `visible`, which CSS promotes to
+       * `auto`, so that phantom horizontal scroll appears; pinning x to
+       * `hidden` removes it.
+       */}
+      <div className="flex-1 overflow-x-hidden overflow-y-auto">
         <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-6">{children}</main>
       </div>
       {/*
