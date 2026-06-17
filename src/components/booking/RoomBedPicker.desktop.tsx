@@ -329,6 +329,13 @@ export function RoomBedPicker({
 
   // People already booked (CONFIRMED) over these dates can't be added again.
   const bookedIds = React.useMemo(() => collectBookedUserIds(availability), [availability]);
+  // The "add person" options exclude the booked set AND anyone already placed in
+  // this draft, so the same person can't be dropped into two rooms/seats. Kept
+  // separate from `bookedIds` so the mode/default-pick logic above is unchanged.
+  const excludedFromAdd = React.useMemo(
+    () => new Set([...bookedIds, ...collectUsedUserIds(value)]),
+    [bookedIds, value],
+  );
 
   const fullAvailable = availability.length === 0 || isFullAvailable(availability);
   const fullPending = fullCottagePending(availability);
@@ -586,7 +593,7 @@ export function RoomBedPicker({
       : pick.name || '—';
 
   return (
-    <BookedUsersContext.Provider value={bookedIds}>
+    <BookedUsersContext.Provider value={excludedFromAdd}>
     <div className="flex flex-col gap-5">
       {showModeToggle && (
         <ModeToggle

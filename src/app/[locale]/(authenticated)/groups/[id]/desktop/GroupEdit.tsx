@@ -265,7 +265,7 @@ export function GroupEdit({
                             value={b.id}
                             disabled={b.id !== m.preferredBedId && bedFull(b.id, b.kind, m.id)}
                           >
-                            {bedDisplayName(b.kind, b.label, (k) => tBook(k), {
+                            {bedDisplayName(b.kind, (k) => tBook(k), {
                               allBedsInRoom: roomBeds,
                               bedId: b.id,
                             })}
@@ -403,7 +403,7 @@ function AddMemberRow({
             <option value="">{t('anyBed')}</option>
             {roomBeds.map((b) => (
               <option key={b.id} value={b.id} disabled={bedFull(b.id, b.kind)}>
-                {bedDisplayName(b.kind, b.label, (k) => tBook(k), {
+                {bedDisplayName(b.kind, (k) => tBook(k), {
                   allBedsInRoom: roomBeds,
                   bedId: b.id,
                 })}

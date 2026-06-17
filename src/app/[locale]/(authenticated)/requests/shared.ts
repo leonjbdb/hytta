@@ -1,4 +1,5 @@
 import type { BedKind } from '@/db/schema';
+import type { BedLike } from '@/lib/booking/bed-display';
 import {
   detectRequestConflicts,
   type ConflictReason,
@@ -73,6 +74,8 @@ export interface RequestsProps {
   viewerId: string;
   /** `roomId → capacity` (null = unlimited). Serialisable map for conflicts. */
   roomCapacities: Record<string, number | null>;
+  /** Every bed in the cottage — used to number bed names by room position. */
+  beds: BedLike[];
 }
 
 export function participantLabel(r: RequestRow): string {

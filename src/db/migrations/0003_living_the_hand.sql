@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `reservation_booking_user_active_idx` ON `reservation` (`booking_id`,`user_id`) WHERE "reservation"."user_id" IS NOT NULL AND "reservation"."status" <> 'CANCELLED';

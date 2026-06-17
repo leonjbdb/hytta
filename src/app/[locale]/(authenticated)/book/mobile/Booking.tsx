@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import type { DateRange } from 'react-day-picker';
 import { CheckCircle2, Clock3 } from 'lucide-react';
@@ -20,9 +20,17 @@ import { ReservationSummary } from '@/components/booking/ReservationSummary.mobi
 import { fetchAvailability } from '@/server/actions/availability';
 import { createBooking, updateBooking } from '@/server/actions/reservations';
 import { toISODate } from '@/lib/utils';
+import { roomLabel } from '@/lib/booking/room-label';
 import { useBookingDraft, type EditBookingState } from '@/lib/booking/use-booking-draft';
 import type { AvailabilityTarget } from '@/lib/booking/types';
-import type { GroupContribution } from '@/lib/booking/group-preset';
+import {
+  applyGroupToSelection,
+  groupWarningMessages,
+  loadGroupMembers,
+  selectionMoves,
+  type ApplyContext,
+} from '@/lib/booking/group-preset';
+import type { ParticipantPick, Selection } from '@/components/booking/RoomBedPicker.desktop';
 
 interface Props {
   rooms: PickerRoom[];
@@ -44,18 +52,23 @@ function parseISO(iso: string | null): Date | undefined {
 export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Props) {
   const t = useTranslations('Book');
   const tErr = useTranslations('Errors');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupParam = searchParams.get('group');
   const { draft, update, clear } = useBookingDraft(currentUserId);
   const [activeGroupId, setActiveGroupId] = React.useState<string | null>(groupParam);
-  // Tracks exactly which picks the currently-selected group injected. Switching
-  // or clearing the group subtracts these so manual additions stick around.
-  const prevContribRef = React.useRef<GroupContribution | null>(null);
+  // The selection captured the moment a group was first applied. Unselecting the
+  // group restores it; switching groups re-derives from it, so manual edits made
+  // while a group is active don't compound across applies.
+  const baseSnapshotRef = React.useRef<Selection | null>(null);
   const draftRef = React.useRef(draft);
   React.useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+  // Availability is read inside the memoised apply callback; mirror it into a ref
+  // so the callback (and the appliedRef effect) don't rebuild on every change.
+  const availabilityRef = React.useRef<AvailabilityTarget[]>([]);
 
   // Entering edit mode loads the booking's current dates + placement into the
   // draft once (keyed by booking id) so it can be modified and saved back.
@@ -67,28 +80,57 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
     }
   }, [edit, update]);
 
+  const buildApplyContext = React.useCallback((): ApplyContext => {
+    const userName = new Map(users.map((u) => [u.id, u.name]));
+    return {
+      rooms,
+      beds,
+      availability: availabilityRef.current,
+      nameOf: (p: ParticipantPick) =>
+        p.kind === 'user' ? userName.get(p.userId) ?? p.userId : p.name,
+      roomNameOf: (r) => roomLabel({ nameNb: r.nameNb, nameEn: r.nameEn }, locale),
+    };
+  }, [users, rooms, beds, locale]);
+
   const applyGroup = React.useCallback(
     async (groupId: string) => {
-      const { fetchGroupContribution, subtractContribution, mergeContribution } =
-        await import('@/lib/booking/group-preset');
-      const contribution = await fetchGroupContribution(groupId, { rooms, beds });
-      if (!contribution) return;
-      const cleared = subtractContribution(draftRef.current.selection, prevContribRef.current);
-      const { selection: next, added } = mergeContribution(cleared, contribution);
-      update({ selection: next });
-      prevContribRef.current = added;
+      const members = await loadGroupMembers(groupId);
+      if (!members) return;
+      // Snapshot the pre-group layout the first time; later applies re-derive
+      // from that same base (so switching groups gives the group's default).
+      if (baseSnapshotRef.current == null) baseSnapshotRef.current = draftRef.current.selection;
+      const { selection, warnings } = applyGroupToSelection(
+        baseSnapshotRef.current,
+        members,
+        buildApplyContext(),
+      );
+      update({ selection });
       setActiveGroupId(groupId);
+      const tw = t as unknown as (key: string, values?: Record<string, string | number>) => string;
+      for (const msg of groupWarningMessages(warnings, tw)) toast.warning(msg);
     },
-    [update, rooms, beds],
+    [update, buildApplyContext, t],
   );
 
-  const clearGroup = React.useCallback(async () => {
-    const { subtractContribution } = await import('@/lib/booking/group-preset');
-    const next = subtractContribution(draftRef.current.selection, prevContribRef.current);
-    update({ selection: next });
-    prevContribRef.current = null;
+  const clearGroup = React.useCallback(() => {
+    // Restore the layout from before the group was applied; the next apply will
+    // re-snapshot, giving the group's default placement again.
+    const base = baseSnapshotRef.current;
+    if (base != null) {
+      // Restoring shifts anyone the group had relocated back to their old spot —
+      // warn about those moves too, mirroring the apply-time "moved" toast.
+      const moved = base.mode === 'ROOMS' ? selectionMoves(draftRef.current.selection, base) : [];
+      update({ selection: base });
+      baseSnapshotRef.current = null;
+      if (moved.length > 0) {
+        const { nameOf } = buildApplyContext();
+        const names = [...new Set(moved.map(nameOf))].join(', ');
+        const tw = t as unknown as (k: string, v?: Record<string, string | number>) => string;
+        toast.warning(tw('groupMovedBack', { names }));
+      }
+    }
     setActiveGroupId(null);
-  }, [update]);
+  }, [update, buildApplyContext, t]);
 
   // Apply a group preset once per `?group=` value. Loading the group is a
   // separate server action so we only fire it on the page where it matters.
@@ -122,6 +164,9 @@ export function Booking({ rooms, beds, users, groups, currentUserId, edit }: Pro
   );
 
   const [availability, setAvailability] = React.useState<AvailabilityTarget[]>([]);
+  React.useEffect(() => {
+    availabilityRef.current = availability;
+  }, [availability]);
   const [isPending, startTransition] = React.useTransition();
   const [success, setSuccess] = React.useState<null | 'PENDING' | 'CONFIRMED'>(null);
   const [managerNames, setManagerNames] = React.useState<string[]>([]);

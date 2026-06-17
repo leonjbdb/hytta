@@ -66,7 +66,10 @@ export default async function RequestsPage({
     .select({ id: rooms.id, capacityMode: rooms.capacityMode, slotCount: rooms.slotCount })
     .from(rooms)
     .all();
-  const bedRows = await db.select({ roomId: beds.roomId, kind: beds.kind }).from(beds).all();
+  const bedRows = await db
+    .select({ id: beds.id, roomId: beds.roomId, kind: beds.kind })
+    .from(beds)
+    .all();
   const bedSlotsByRoom = new Map<string, number>();
   for (const b of bedRows) {
     bedSlotsByRoom.set(b.roomId, (bedSlotsByRoom.get(b.roomId) ?? 0) + BED_CAPACITY[b.kind]);
@@ -80,6 +83,6 @@ export default async function RequestsPage({
   return pickVariant({
     desktop: RequestsDesktop,
     mobile: RequestsMobile,
-    props: { rows, viewerId: session.user.id, roomCapacities },
+    props: { rows, viewerId: session.user.id, roomCapacities, beds: bedRows },
   });
 }

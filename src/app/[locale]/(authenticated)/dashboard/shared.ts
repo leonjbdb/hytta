@@ -1,4 +1,5 @@
 import type { BedKind } from '@/db/schema';
+import type { BedLike } from '@/lib/booking/bed-display';
 import type { OccupancyCalendarRoom } from '@/components/booking/OccupancyCalendar.shared';
 
 export interface DashboardRow {
@@ -18,6 +19,7 @@ export interface DashboardRow {
   roomNameEn: string | null;
   roomIcon: string | null;
   roomColor: string | null;
+  bedId: string | null;
   bedLabel: string | null;
   bedKind: BedKind | null;
   startDate: string;
@@ -104,6 +106,8 @@ export interface DashboardProps {
   isAdmin: boolean;
   /** Cottage rooms — used by the date-filter calendar at the top. */
   rooms: OccupancyCalendarRoom[];
+  /** Every bed in the cottage — used to number bed names by room position. */
+  beds: BedLike[];
 }
 
 /** Keep only rows whose [startDate, endDate] interval covers `iso`. */

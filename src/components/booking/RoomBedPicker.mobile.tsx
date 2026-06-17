@@ -292,6 +292,13 @@ export function RoomBedPicker({
 
   // People already booked (CONFIRMED) over these dates can't be added again.
   const bookedIds = React.useMemo(() => collectBookedUserIds(availability), [availability]);
+  // The "add person" options exclude the booked set AND anyone already placed in
+  // this draft, so the same person can't be dropped into two rooms/seats. Kept
+  // separate from `bookedIds` so the mode/default-pick logic is unchanged.
+  const excludedFromAdd = React.useMemo(
+    () => new Set([...bookedIds, ...collectUsedUserIds(value)]),
+    [bookedIds, value],
+  );
 
   const fullAvailable = availability.length === 0 || isFullAvailable(availability);
   const fullPending = fullCottagePending(availability);
@@ -563,7 +570,7 @@ export function RoomBedPicker({
       : pick.name || '—';
 
   return (
-    <BookedUsersContext.Provider value={bookedIds}>
+    <BookedUsersContext.Provider value={excludedFromAdd}>
     <div className="flex flex-col gap-5">
       <ModeToggle
         value={value.mode}
@@ -1191,9 +1198,10 @@ function BedBox({
   });
 
   const othersBadge = hasOthers ? (
-    // Each holder gets their own badge (two people sharing a double both show);
-    // only more distinct people than capacity (back-to-back) collapse.
-    <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--muted)]/50 px-1.5 py-1">
+    // Each holder gets their own badge on its own line — two people sharing a
+    // double stack vertically rather than side by side (mobile is narrow). Only
+    // more distinct people than capacity (back-to-back) collapse.
+    <div className="flex flex-col items-start gap-1.5 rounded-md bg-[var(--muted)]/50 px-1.5 py-1">
       <BookedOccupants occupants={takenBy} capacity={capacity} />
     </div>
   ) : null;

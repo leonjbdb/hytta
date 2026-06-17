@@ -49,14 +49,20 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
   const occupancyContext = React.useMemo(
     // Cells are now responsive (1/7 of the grid); ~48 is a representative width
     // for sizing the room icons (the icon size is clamped anyway).
+    //
+    // Deliberately no `onDayHover`: the hover-range preview is a pointer-device
+    // feature. On touch nothing hovers between the start/end taps, and the
+    // synthesized `mouseenter` a tap fires would briefly set the preview range —
+    // re-rendering it and repainting its row-edge fade gradients, which flickers
+    // on iOS. Omitting it commits the tapped range straight to its final shape,
+    // so the faded edges paint once and stay put. (Desktop keeps hover preview.)
     () => ({
       byDay: occupancy,
       rooms,
       fullyBooked: fullyBookedSet,
       cellWidth: 48,
-      onDayHover: ctrl.setHoverDate,
     }),
-    [occupancy, rooms, fullyBookedSet, ctrl.setHoverDate],
+    [occupancy, rooms, fullyBookedSet],
   );
 
   const dayPicker =

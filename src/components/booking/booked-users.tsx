@@ -19,7 +19,12 @@ export function collectBookedUserIds(availability: AvailabilityTarget[]): Set<st
   return ids;
 }
 
-/** Provides the booked-user set to the participant pickers so they can drop
- *  already-booked people from their options without prop-drilling. */
+/**
+ * Provides the excluded-user set (booked elsewhere over these dates, or already
+ * placed in another room/seat of this draft) to the participant pickers without
+ * prop-drilling, so the same person can't be added twice. The row currently
+ * holding a person still shows them — see the `=== encoded` escape hatch in the
+ * participant picker.
+ */
 export const BookedUsersContext = React.createContext<Set<string>>(new Set());
 export const useBookedUsers = () => React.useContext(BookedUsersContext);

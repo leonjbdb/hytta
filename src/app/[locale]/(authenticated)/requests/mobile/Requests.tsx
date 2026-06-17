@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { PersonBadge } from '@/components/PersonBadge';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { FullCottageShape, RoomIcon } from '@/components/booking/RoomIcon';
-import { bedDisplayName } from '@/lib/booking/bed-display';
+import { bedDisplayNameInRoom } from '@/lib/booking/bed-display';
 import { roomLabel } from '@/lib/booking/room-label';
 import { approveBooking, rejectBooking } from '@/server/actions/requests';
 import {
@@ -27,7 +27,7 @@ import {
  * Mobile requests: rows wrap onto their own line; Approve/Reject become
  * full-width stacked buttons so the manager can act with one thumb.
  */
-export function Requests({ rows, roomCapacities }: RequestsProps) {
+export function Requests({ rows, roomCapacities, beds }: RequestsProps) {
   const t = useTranslations('Requests');
   const tBook = useTranslations('Book');
   const tDash = useTranslations('Dashboard');
@@ -56,8 +56,8 @@ export function Requests({ rows, roomCapacities }: RequestsProps) {
     if ((r.targetKind === 'ROOM' || r.targetKind === 'SLOT') && (r.roomNameNb || r.roomNameEn)) {
       return roomLabel({ nameNb: r.roomNameNb, nameEn: r.roomNameEn }, locale);
     }
-    if (r.targetKind === 'BED' && r.bedKind && r.bedLabel) {
-      return bedDisplayName(r.bedKind, r.bedLabel, (k) => tBook(k));
+    if (r.targetKind === 'BED' && r.bedKind && r.bedId) {
+      return bedDisplayNameInRoom(r.bedKind, r.bedId, beds, (k) => tBook(k));
     }
     return '?';
   };

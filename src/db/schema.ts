@@ -465,5 +465,13 @@ export const reservations = sqliteTable(
     index('reservation_status_target_idx').on(t.status, t.targetKind),
     index('reservation_booking_idx').on(t.bookingId),
     uniqueIndex('reservation_id_idx').on(t.id),
+    // A registered participant may hold at most one live row per booking — you
+    // can't sleep in two beds/rooms of the same stay. Partial so cancelled rows
+    // don't block re-booking and guests (NULL user_id) stay free-form. The
+    // cross-booking, same-day case can't be a SQLite index (range overlap), so
+    // it's enforced in the write path — see `findUserDateConflicts`.
+    uniqueIndex('reservation_booking_user_active_idx')
+      .on(t.bookingId, t.userId)
+      .where(sql`${t.userId} IS NOT NULL AND ${t.status} <> 'CANCELLED'`),
   ],
 );

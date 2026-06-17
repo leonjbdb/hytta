@@ -32,6 +32,13 @@ export default async function DashboardPage({
     .orderBy(asc(rooms.nameNb))
     .all();
 
+  // Every bed in the cottage — lets the row renderer number a booked bed by its
+  // position amongst same-kind siblings in its room (labels are opaque).
+  const allBeds = await db
+    .select({ id: beds.id, roomId: beds.roomId, kind: beds.kind })
+    .from(beds)
+    .all();
+
   const participantUser = aliasedTable(users, 'participant_user');
   const bookerUser = aliasedTable(users, 'booker_user');
 
@@ -52,6 +59,7 @@ export default async function DashboardPage({
       roomNameEn: rooms.nameEn,
       roomIcon: rooms.icon,
       roomColor: rooms.color,
+      bedId: reservations.bedId,
       bedLabel: beds.label,
       bedKind: beds.kind,
       startDate: reservations.startDate,
@@ -95,6 +103,7 @@ export default async function DashboardPage({
       isManager: Boolean(session.user.isManager),
       isAdmin: Boolean(session.user.isAdmin),
       rooms: allRooms,
+      beds: allBeds,
     },
   });
 }

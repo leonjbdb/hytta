@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { CancelRowButton, CancelBookingButton } from './cancel-buttons';
 import { FullCottageShape, RoomIcon } from '@/components/booking/RoomIcon';
 import { OccupancyCalendar } from '@/components/booking/OccupancyCalendar.desktop';
-import { bedDisplayName } from '@/lib/booking/bed-display';
+import { bedDisplayNameInRoom } from '@/lib/booking/bed-display';
 import { roomLabel } from '@/lib/booking/room-label';
 import { toISODate } from '@/lib/utils';
 import {
@@ -33,6 +33,7 @@ export function Dashboard({
   isManager,
   isAdmin,
   rooms,
+  beds,
 }: DashboardProps) {
   const t = useTranslations('Dashboard');
   const tBrand = useTranslations('Brand');
@@ -118,6 +119,7 @@ export function Dashboard({
       isAdmin={isAdmin}
       allowCancel={options.allowCancel}
       bulkExpand={bulkExpand}
+      beds={beds}
     />
   );
 
@@ -287,6 +289,7 @@ function BookingGroupCard({
   isAdmin,
   allowCancel,
   bulkExpand,
+  beds,
 }: {
   g: BookingGroup;
   viewerId: string;
@@ -294,6 +297,7 @@ function BookingGroupCard({
   isAdmin: boolean;
   allowCancel: boolean;
   bulkExpand: 'none' | 'expanded' | 'collapsed';
+  beds: DashboardProps['beds'];
 }) {
   const t = useTranslations('Dashboard');
   const tBook = useTranslations('Book');
@@ -348,8 +352,8 @@ function BookingGroupCard({
     if ((r.targetKind === 'ROOM' || r.targetKind === 'SLOT') && (r.roomNameNb || r.roomNameEn)) {
       return roomLabel({ nameNb: r.roomNameNb, nameEn: r.roomNameEn }, locale);
     }
-    if (r.targetKind === 'BED' && r.bedKind && r.bedLabel) {
-      const bed = bedDisplayName(r.bedKind, r.bedLabel, (k) => tBook(k));
+    if (r.targetKind === 'BED' && r.bedKind && r.bedId) {
+      const bed = bedDisplayNameInRoom(r.bedKind, r.bedId, beds, (k) => tBook(k));
       const room =
         r.roomNameNb || r.roomNameEn
           ? roomLabel({ nameNb: r.roomNameNb, nameEn: r.roomNameEn }, locale)

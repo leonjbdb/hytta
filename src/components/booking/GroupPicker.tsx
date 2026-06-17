@@ -18,11 +18,11 @@ interface Props {
 
 /**
  * Compact group selector shown above the room picker. Picking a group fires
- * `onApply(id)` which the parent translates into a draft selection (via
- * {@link fetchGroupContribution}). Picking the empty option fires
- * `onClear` so the parent can subtract that group's members from the draft
- * while leaving manual additions intact. The select fills the row and carries a
- * chevron at its right edge so it matches the participant pickers' look.
+ * `onApply(id)`, which the parent turns into a draft selection (via
+ * `applyGroupToSelection`). Picking the empty option fires `onClear` so the
+ * parent can restore the layout from before the group was applied. The select
+ * fills the row and carries a chevron at its right edge so it matches the
+ * participant pickers' look.
  */
 export function GroupPicker({ groups, value, onApply, onClear }: Props) {
   const t = useTranslations('Book');

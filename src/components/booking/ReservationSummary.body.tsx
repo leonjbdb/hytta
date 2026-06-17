@@ -55,7 +55,7 @@ export function ReservationSummaryBody({
     if (!bedId) return null;
     const bed = beds.find((b) => b.id === bedId);
     if (!bed) return null;
-    return bedDisplayName(bed.kind, bed.label, (k) => t(k), {
+    return bedDisplayName(bed.kind, (k) => t(k), {
       allBedsInRoom: beds.filter((b) => b.roomId === roomId),
       bedId,
     });
