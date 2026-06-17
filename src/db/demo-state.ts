@@ -1,5 +1,4 @@
-import { hashPassword } from '@/lib/auth/password';
-import { demoPasswordFor } from '@/lib/demo-constants';
+import { demoPasswordHashFor } from '@/lib/demo-password-hashes';
 import type { BedKind, ReservationStatus, RoomCapacityMode, TargetKind } from './schema';
 
 export const DEMO_COTTAGE_NAME = "The Dwarfs' Cottage";
@@ -913,15 +912,12 @@ const DEMO_INVITES = [
   },
 ] as const;
 
-export async function createDemoState(nowMs = Date.now()): Promise<DemoState> {
+export function createDemoState(nowMs = Date.now()): DemoState {
   assertDemoBookingsAreConsistent();
   const nowSec = Math.floor(nowMs / 1000);
-  // Each account has its own password (see DEMO_ACCOUNT_PASSWORDS) — hash them
-  // up front so the synchronous user map below can look each one up by email.
-  const passwordHashByEmail = new Map<string, string>();
-  for (const u of DEMO_USERS) {
-    passwordHashByEmail.set(u.email, await hashPassword(demoPasswordFor(u.email)));
-  }
+  // Password hashes are precomputed (see demo-password-hashes.ts) rather than
+  // hashed here: this seed is rebuilt in-isolate on every demo request, and
+  // PBKDF2'ing each account at runtime blew the Workers Free-plan 10ms CPU cap.
 
   return {
     users: DEMO_USERS.map((u) => ({
@@ -932,7 +928,7 @@ export async function createDemoState(nowMs = Date.now()): Promise<DemoState> {
       lastName: u.lastName,
       emailVerified: nowMs,
       image: null,
-      passwordHash: passwordHashByEmail.get(u.email) ?? null,
+      passwordHash: demoPasswordHashFor(u.email),
       isAdmin: u.isAdmin ?? false,
       isManager: u.isManager ?? false,
       isInvitee: true,

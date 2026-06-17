@@ -128,7 +128,7 @@ export async function getDemoState(): Promise<DemoState> {
   const cached = await readCachedState(generation);
   if (cached) return cached;
 
-  const state = await createDemoState();
+  const state = createDemoState();
   await writeCachedState(generation, state);
   await deleteCachedState(generation - 1);
   return state;
