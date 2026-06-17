@@ -39,13 +39,16 @@ export interface BookingGroup {
 }
 
 /**
- * Filter values for the dashboard "show" segmented control.
- *   - `mine` ("My Bookings"): bookings the viewer is involved in — either as
- *     the booker or as a participant. The `myStaysOnly` flag narrows this to
- *     just the bookings where the viewer is actually staying.
- *   - `booked` ("Others"): bookings the viewer has nothing to do with — neither
- *     the booker nor a participant — i.e. other people's bookings.
+ * Filter values for the dashboard "show" segmented control. "My Stays" and
+ * "Others" partition every booking by whether the viewer is sleeping there:
+ *   - `mine` ("My Stays"): stays the viewer is a participant in.
+ *   - `booked` ("Others"): stays the viewer is NOT a participant in — other
+ *     people's stays, regardless of who booked them.
  *   - `all`: every booking visible to the viewer.
+ *
+ * The `onlyMyBookings` flag — the "My Bookings" toggle, shown on every tab —
+ * further restricts the result to bookings the viewer created (is the booker
+ * of); e.g. on "Others" it surfaces stays the viewer booked for someone else.
  */
 export type DashboardFilter = 'mine' | 'booked' | 'all';
 
@@ -55,17 +58,17 @@ export function filterGroups(
   groups: BookingGroup[],
   viewerId: string,
   filter: DashboardFilter,
-  myStaysOnly = false,
+  onlyMyBookings = false,
 ): BookingGroup[] {
-  if (filter === 'all') return groups;
   const isParticipant = (g: BookingGroup) =>
     g.rows.some((r) => r.participantId === viewerId);
-  if (filter === 'mine') {
-    const mine = groups.filter((g) => g.bookerId === viewerId || isParticipant(g));
-    return myStaysOnly ? mine.filter(isParticipant) : mine;
-  }
-  // 'booked' ("Others") — bookings the viewer isn't involved in at all.
-  return groups.filter((g) => g.bookerId !== viewerId && !isParticipant(g));
+  const base =
+    filter === 'all'
+      ? groups
+      : filter === 'mine'
+        ? groups.filter(isParticipant) // "My Stays" — where the viewer sleeps
+        : groups.filter((g) => !isParticipant(g)); // "Others" — stays they're not in
+  return onlyMyBookings ? base.filter((g) => g.bookerId === viewerId) : base;
 }
 
 /** Group rows by bookingId, flag pending if any row in the booking is. */

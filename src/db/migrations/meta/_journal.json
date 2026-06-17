@@ -29,6 +29,13 @@
       "when": 1781726668675,
       "tag": "0003_living_the_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781731442414,
+      "tag": "0004_public_photon",
+      "breakpoints": true
     }
   ]
 }

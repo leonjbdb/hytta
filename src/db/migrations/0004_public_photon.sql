@@ -1,0 +1,1 @@
+ALTER TABLE `cottage_settings` ADD `address` text;

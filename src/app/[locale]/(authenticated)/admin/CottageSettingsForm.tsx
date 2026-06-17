@@ -11,7 +11,11 @@ import { CollapsibleSection } from '@/components/CollapsibleSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { COTTAGE_DESCRIPTION_MAX, COTTAGE_NAME_MAX } from '@/lib/cottage-limits';
+import {
+  COTTAGE_ADDRESS_MAX,
+  COTTAGE_DESCRIPTION_MAX,
+  COTTAGE_NAME_MAX,
+} from '@/lib/cottage-limits';
 import { updateCottage } from '@/server/actions/cottage';
 
 /**
@@ -24,14 +28,17 @@ import { updateCottage } from '@/server/actions/cottage';
 export function CottageSettingsForm({
   initialName,
   initialDescription,
+  initialAddress,
 }: {
   initialName: string;
   initialDescription: string;
+  initialAddress: string;
 }) {
   const t = useTranslations('Admin');
   const router = useRouter();
   const [name, setName] = React.useState(initialName);
   const [description, setDescription] = React.useState(initialDescription);
+  const [address, setAddress] = React.useState(initialAddress);
   const [pending, startTransition] = React.useTransition();
   const [status, setStatus] = React.useState<{ kind: 'ok'; msg: string } | null>(null);
 
@@ -79,6 +86,20 @@ export function CottageSettingsForm({
               />
               <span className="text-xs text-[var(--muted-foreground)]">
                 {t('cottageDescriptionHint')}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="cottage-address">{t('cottageAddressLabel')}</Label>
+              <Input
+                id="cottage-address"
+                name="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                maxLength={COTTAGE_ADDRESS_MAX}
+                placeholder={t('cottageAddressPlaceholder')}
+              />
+              <span className="text-xs text-[var(--muted-foreground)]">
+                {t('cottageAddressHint')}
               </span>
             </div>
             <div className="flex items-center gap-3">

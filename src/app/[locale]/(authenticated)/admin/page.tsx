@@ -4,7 +4,7 @@ import { asc, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth/config';
 import { db } from '@/db/client';
 import { beds, rooms, users } from '@/db/schema';
-import { getCottageDescription, getCottageName } from '@/lib/cottage';
+import { getCottageAddress, getCottageDescription, getCottageName } from '@/lib/cottage';
 import { pickVariant } from '@/lib/device/pick';
 import { Admin as AdminDesktop } from './desktop/Admin';
 import { Admin as AdminMobile } from './mobile/Admin';
@@ -66,6 +66,7 @@ export default async function AdminPage({
     props: {
       cottageName: await getCottageName() ?? '',
       cottageDescription: await getCottageDescription() ?? '',
+      cottageAddress: await getCottageAddress() ?? '',
       rooms: allRooms,
       beds: allBeds,
       users: allUsers,

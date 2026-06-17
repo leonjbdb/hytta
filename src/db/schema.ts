@@ -239,6 +239,9 @@ export const cottageSettings = sqliteTable(
      *  previews. Null until set; the app falls back to a default built from
      *  the cottage name. */
     description: text('description'),
+    /** Operator-chosen physical address. Null until set; emitted as the
+     *  LOCATION of every calendar feed event when present. */
+    address: text('address'),
     createdAt: integer('created_at').notNull().$defaultFn(now),
     updatedAt: integer('updated_at').notNull().$defaultFn(now),
   },

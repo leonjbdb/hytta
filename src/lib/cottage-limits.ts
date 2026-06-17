@@ -12,3 +12,6 @@ export const COTTAGE_NAME_MAX = 60;
 /** Maximum length accepted for the link-preview description. Kept near the
  *  ~160-char sweet spot search engines and link unfurlers display. */
 export const COTTAGE_DESCRIPTION_MAX = 200;
+
+/** Maximum length accepted for the cottage address (calendar LOCATION). */
+export const COTTAGE_ADDRESS_MAX = 200;

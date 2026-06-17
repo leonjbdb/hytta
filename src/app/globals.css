@@ -65,6 +65,9 @@
   --primary-foreground: oklch(0.99 0 0);
   --destructive: var(--color-room-red);
   --destructive-foreground: oklch(0.99 0 0);
+  /* Deep wine red — the "exclude" state of the user role filters. Distinct from
+     --destructive (a brighter alarm red) so a filter never reads as a delete. */
+  --wine: oklch(0.45 0.14 18);
   --radius: 0.625rem;
   /* Sticky app-header height. Shared so the header and anything that must clear
      it (e.g. the toaster offset) stay in lockstep. */
@@ -85,6 +88,8 @@
   --primary-foreground: var(--color-clay-950);
   --destructive: var(--color-room-red);
   --destructive-foreground: oklch(0.99 0 0);
+  /* Lighter on the dark clay background so it still reads as wine. */
+  --wine: oklch(0.62 0.15 18);
 }
 
 @theme inline {
@@ -101,6 +106,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-wine: var(--wine);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

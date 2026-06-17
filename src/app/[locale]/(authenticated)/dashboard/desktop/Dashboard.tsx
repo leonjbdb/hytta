@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { CalendarPlus, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, CircleCheck, Pencil, RotateCcw, X } from 'lucide-react';
+import { CalendarPlus, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, CircleCheck, Pencil, RotateCcw, User, X } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { PersonBadge } from '@/components/PersonBadge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,7 +39,7 @@ export function Dashboard({
   const tBrand = useTranslations('Brand');
   const locale = useLocale();
   const [filter, setFilter] = React.useState<DashboardFilter>('mine');
-  const [myStaysOnly, setMyStaysOnly] = React.useState(false);
+  const [onlyMyBookings, setOnlyMyBookings] = React.useState(false);
   // Bulk expand cycles: none → expanded → collapsed → none (reset, restoring each
   // card's own open/closed state) → …
   const [bulkExpand, setBulkExpand] = React.useState<'none' | 'expanded' | 'collapsed'>('none');
@@ -94,16 +94,16 @@ export function Dashboard({
 
   const upcomingGroups = React.useMemo(() => {
     const filtered = dateIso ? filterByDate(upcoming, dateIso) : upcoming;
-    return filterGroups(groupBookings(filtered), viewerId, filter, myStaysOnly);
-  }, [upcoming, viewerId, filter, myStaysOnly, dateIso]);
+    return filterGroups(groupBookings(filtered), viewerId, filter, onlyMyBookings);
+  }, [upcoming, viewerId, filter, onlyMyBookings, dateIso]);
   const currentGroups = React.useMemo(() => {
     const filtered = dateIso ? filterByDate(current, dateIso) : current;
-    return filterGroups(groupBookings(filtered), viewerId, filter, myStaysOnly);
-  }, [current, viewerId, filter, myStaysOnly, dateIso]);
+    return filterGroups(groupBookings(filtered), viewerId, filter, onlyMyBookings);
+  }, [current, viewerId, filter, onlyMyBookings, dateIso]);
   const pastGroups = React.useMemo(() => {
     const filtered = dateIso ? filterByDate(past, dateIso) : past;
-    return filterGroups(groupBookings(filtered), viewerId, filter, myStaysOnly);
-  }, [past, viewerId, filter, myStaysOnly, dateIso]);
+    return filterGroups(groupBookings(filtered), viewerId, filter, onlyMyBookings);
+  }, [past, viewerId, filter, onlyMyBookings, dateIso]);
 
   // When a date is picked we want past results visible by default — they're
   // the most likely match for a backwards browse — without forcing the user
@@ -120,6 +120,7 @@ export function Dashboard({
       allowCancel={options.allowCancel}
       bulkExpand={bulkExpand}
       beds={beds}
+      highlightViewerBadge={filter !== 'mine'}
     />
   );
 
@@ -157,29 +158,9 @@ export function Dashboard({
             />
           )}
         </div>
-        {filter === 'mine' ? (
-          <button
-            type="button"
-            aria-pressed={myStaysOnly}
-            onClick={() => setMyStaysOnly((v) => !v)}
-            className={
-              'inline-flex w-fit cursor-pointer items-center gap-2 self-start rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ' +
-              (myStaysOnly
-                ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
-                : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]')
-            }
-          >
-            <span
-              className={
-                'flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border border-current ' +
-                (myStaysOnly ? '' : 'opacity-70')
-              }
-            >
-              {myStaysOnly && <Check className="size-2.5" />}
-            </span>
-            {t('filterMyStays')}
-          </button>
-        ) : (
+        {/* Expand/collapse/reset first, then the My Bookings filter — both on
+            every tab. */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             aria-pressed={bulkExpand !== 'none'}
@@ -189,7 +170,7 @@ export function Dashboard({
               )
             }
             className={
-              'inline-flex w-fit cursor-pointer items-center gap-2 self-start rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ' +
+              'inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ' +
               (bulkExpand !== 'none'
                 ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
                 : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]')
@@ -208,7 +189,28 @@ export function Dashboard({
                 ? t('collapseAll')
                 : t('reset')}
           </button>
-        )}
+          <button
+            type="button"
+            aria-pressed={onlyMyBookings}
+            onClick={() => setOnlyMyBookings((v) => !v)}
+            className={
+              'inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ' +
+              (onlyMyBookings
+                ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
+                : 'border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]')
+            }
+          >
+            <span
+              className={
+                'flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border border-current ' +
+                (onlyMyBookings ? '' : 'opacity-70')
+              }
+            >
+              {onlyMyBookings && <Check className="size-2.5" />}
+            </span>
+            {t('filterMyBookings')}
+          </button>
+        </div>
       </div>
 
       {dateIso && currentGroups.length === 0 && upcomingGroups.length === 0 && pastGroups.length === 0 && (
@@ -290,6 +292,7 @@ function BookingGroupCard({
   allowCancel,
   bulkExpand,
   beds,
+  highlightViewerBadge,
 }: {
   g: BookingGroup;
   viewerId: string;
@@ -298,6 +301,9 @@ function BookingGroupCard({
   allowCancel: boolean;
   bulkExpand: 'none' | 'expanded' | 'collapsed';
   beds: DashboardProps['beds'];
+  /** Tint the viewer's own booker badge green — done on the "Others"/"All"
+   *  tabs to flag which bookings are theirs, but not on "My Stays" (all are). */
+  highlightViewerBadge: boolean;
 }) {
   const t = useTranslations('Dashboard');
   const tBook = useTranslations('Book');
@@ -337,7 +343,9 @@ function BookingGroupCard({
   // Modify: owner or admin. Delete: owner, admin, or manager.
   const canModify = isViewerBooker || isAdmin;
   const canDelete = isViewerBooker || isAdmin || isManager;
-  const bookerLabel = isViewerBooker ? t('you') : g.bookerName ?? '—';
+  // Show the booker's real name (never "You") — tint it green when it's the
+  // viewer, matching how their own participant badge is highlighted.
+  const bookerName = g.bookerName ?? '—';
 
   const formatDate = (iso: string) =>
     new Date(iso + 'T00:00:00Z').toLocaleDateString(locale, {
@@ -392,7 +400,27 @@ function BookingGroupCard({
               {formatDate(g.startDate)} → {formatDate(g.endDate)}
             </span>
             <span className="text-xs text-[var(--muted-foreground)]">
-              {t('bookedBy', { name: bookerLabel })} ·{' '}
+              {t.rich('bookedBy', {
+                name: bookerName,
+                // Every booker shows as a user badge. The viewer's own is tinted
+                // green to flag it on the "Others"/"All" tabs, but stays plain on
+                // "My Stays" (where everything is theirs). Non-interactive `Badge`
+                // (not `PersonBadge`) since this sits inside the card's
+                // expand/collapse button.
+                who: () => (
+                  <Badge
+                    className={
+                      isViewerBooker && highlightViewerBadge
+                        ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
+                        : 'text-[var(--muted-foreground)]'
+                    }
+                  >
+                    <User className="size-3.5 shrink-0" aria-hidden />
+                    {bookerName}
+                  </Badge>
+                ),
+              })}{' '}
+              ·{' '}
               {tBook('slotsUsedUnlimited', { count: g.rows.length })}
             </span>
           </span>

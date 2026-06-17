@@ -27,6 +27,14 @@ import {
 import { BedsEditor } from '../BedsEditor';
 import { NewRoomForm, RoomFormFields } from '../RoomForm';
 import { RoleToggle } from '../RoleToggle';
+import {
+  EMPTY_ROLE_FILTERS,
+  RoleFilterBar,
+  cycleFilterState,
+  userMatchesRoleFilters,
+  type RoleFilters,
+  type RoleKey,
+} from '../UserFilters';
 
 import type { AdminBed, AdminProps, AdminRoom, AdminUser } from '../shared';
 
@@ -37,6 +45,7 @@ export type { AdminBed, AdminRoom, AdminUser };
 export function Admin({
   cottageName,
   cottageDescription,
+  cottageAddress,
   rooms,
   beds,
   users,
@@ -54,6 +63,7 @@ export function Admin({
       <CottageSettingsForm
         initialName={cottageName}
         initialDescription={cottageDescription}
+        initialAddress={cottageAddress}
       />
       <RoomsSection rooms={rooms} beds={beds} />
       <UsersSection users={users} adminCount={adminCount} viewerId={viewerId} />
@@ -261,15 +271,17 @@ function UsersSection({
   const [pending, setPending] = React.useState<{ id: string; role: UserRole } | null>(null);
   const [kicking, setKicking] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
+  const [roleFilters, setRoleFilters] = React.useState<RoleFilters>(EMPTY_ROLE_FILTERS);
   const searchId = React.useId();
+  const cycleRole = (role: RoleKey) =>
+    setRoleFilters((f) => ({ ...f, [role]: cycleFilterState(f[role]) }));
 
   const q = query.trim().toLowerCase();
-  const matched = q
-    ? users.filter(
-        (u) =>
-          (u.name ?? '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
-      )
-    : users;
+  const matched = users.filter((u) => {
+    if (q && !((u.name ?? '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q)))
+      return false;
+    return userMatchesRoleFilters(u, roleFilters);
+  });
   // Pin yourself to the top; everyone else keeps their original order (stable sort).
   const filtered = [...matched].sort((a, b) =>
     a.id === viewerId ? -1 : b.id === viewerId ? 1 : 0,
@@ -322,6 +334,8 @@ function UsersSection({
           className="pl-9"
         />
       </div>
+
+      <RoleFilterBar filters={roleFilters} onCycle={cycleRole} />
 
       <Card>
         <CardContent className="flex flex-col gap-2 py-4">

@@ -98,7 +98,7 @@ export function Requests({ rows, roomCapacities, beds }: RequestsProps) {
             {formatDate(g.startDate)} → {formatDate(g.endDate)}
           </p>
           <p className="text-xs text-[var(--muted-foreground)]">
-            {tDash('bookedBy', { name: g.bookerName ?? '—' })}
+            {tDash.rich('bookedBy', { name: g.bookerName ?? '—', who: (c) => <>{c}</> })}
           </p>
         </div>
         <Badge className="bg-[color-mix(in_oklch,var(--color-partial),white_60%)] text-[var(--color-clay-800)]">

@@ -6,6 +6,7 @@ import { auth, signIn } from '@/lib/auth/config';
 import { getDb } from '@/db/client';
 import { users } from '@/db/schema';
 import {
+  COTTAGE_ADDRESS_MAX,
   COTTAGE_DESCRIPTION_MAX,
   COTTAGE_NAME_MAX,
   isCottageConfigured,
@@ -22,6 +23,8 @@ const SettingsSchema = z.object({
   name: z.string().trim().min(1).max(COTTAGE_NAME_MAX),
   // Optional: a blank value clears the description back to the default.
   description: z.string().trim().max(COTTAGE_DESCRIPTION_MAX),
+  // Optional: a blank value clears the address (no calendar LOCATION).
+  address: z.string().trim().max(COTTAGE_ADDRESS_MAX),
 });
 
 const SetupSchema = z.object({
@@ -119,6 +122,7 @@ export async function updateCottage(formData: FormData): Promise<SetupResult> {
   const parsed = SettingsSchema.safeParse({
     name: formData.get('name'),
     description: formData.get('description') ?? '',
+    address: formData.get('address') ?? '',
   });
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid input' };

@@ -6,7 +6,7 @@ import { isDemoMode } from '@/lib/demo-mode';
 
 // Re-exported so server callers can keep importing limits from `@/lib/cottage`.
 // The canonical home is the client-safe `cottage-limits` module.
-export { COTTAGE_DESCRIPTION_MAX, COTTAGE_NAME_MAX } from './cottage-limits';
+export { COTTAGE_ADDRESS_MAX, COTTAGE_DESCRIPTION_MAX, COTTAGE_NAME_MAX } from './cottage-limits';
 
 /**
  * Cottage display name. The app is "Hytta"; each deployment names its own
@@ -79,6 +79,28 @@ export async function cottageDescriptionOrDefault(): Promise<string> {
   return (await getCottageDescription()) ?? `Book your stay at ${await cottageNameOrApp()}.`;
 }
 
+/**
+ * The operator-chosen physical address, or `null` when it hasn't been set.
+ * Like {@link getCottageName}, returns `null` rather than throwing if the
+ * table/column is missing (e.g. at build time before migrations run).
+ */
+export const getCottageAddress = cache(async (): Promise<string | null> => {
+  try {
+    const row = (
+      await db
+        .select({ address: cottageSettings.address })
+        .from(cottageSettings)
+        .where(eq(cottageSettings.id, SINGLETON_ID))
+        .all()
+    )[0];
+    const address = row?.address?.trim();
+    return address && address.length > 0 ? address : null;
+  } catch (err) {
+    if (isDemoMode()) throw err;
+    return null;
+  }
+});
+
 /** True once the operator has named the cottage. */
 export async function isCottageConfigured(): Promise<boolean> {
   return (await getCottageName()) !== null;
@@ -108,25 +130,33 @@ export async function setCottageName(name: string): Promise<void> {
 export async function setCottageSettings({
   name,
   description,
+  address = '',
 }: {
   name: string;
   description: string;
+  /** Blank clears it back to `null`. Omitted by first-run setup. */
+  address?: string;
 }): Promise<void> {
   const trimmedName = name.trim();
   const trimmedDescription = description.trim();
+  const trimmedAddress = address.trim();
+  const descriptionValue = trimmedDescription.length > 0 ? trimmedDescription : null;
+  const addressValue = trimmedAddress.length > 0 ? trimmedAddress : null;
   const now = Math.floor(Date.now() / 1000);
   await db
     .insert(cottageSettings)
     .values({
       id: SINGLETON_ID,
       name: trimmedName,
-      description: trimmedDescription.length > 0 ? trimmedDescription : null,
+      description: descriptionValue,
+      address: addressValue,
     })
     .onConflictDoUpdate({
       target: cottageSettings.id,
       set: {
         name: trimmedName,
-        description: trimmedDescription.length > 0 ? trimmedDescription : null,
+        description: descriptionValue,
+        address: addressValue,
         updatedAt: now,
       },
     })

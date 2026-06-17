@@ -28,6 +28,8 @@ export interface AdminProps {
   cottageName: string;
   /** Link-preview description; empty string when the operator hasn't set one. */
   cottageDescription: string;
+  /** Physical address (calendar LOCATION); empty string when unset. */
+  cottageAddress: string;
   rooms: AdminRoom[];
   beds: AdminBed[];
   users: AdminUser[];

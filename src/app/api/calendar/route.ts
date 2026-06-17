@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
 import { buildFeed, type FeedScope } from '@/lib/calendar/feed';
-import { cottageNameOrApp } from '@/lib/cottage';
+import { cottageNameOrApp, getCottageAddress } from '@/lib/cottage';
 
 /**
  * Public iCal feed endpoint. Authenticates via the per-user `calendar_token`
@@ -57,6 +57,8 @@ export async function GET(req: Request): Promise<Response> {
     viewerId: user.id,
     locale,
     cottageName: await cottageNameOrApp(),
+    cottageAddress: (await getCottageAddress()) ?? undefined,
+    appOrigin: url.origin,
   });
 
   const filename = `hytta-${scope}.ics`;

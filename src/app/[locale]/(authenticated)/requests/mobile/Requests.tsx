@@ -105,7 +105,7 @@ export function Requests({ rows, roomCapacities, beds }: RequestsProps) {
           </Badge>
         </div>
         <p className="text-xs text-[var(--muted-foreground)]">
-          {tDash('bookedBy', { name: g.bookerName ?? '—' })}
+          {tDash.rich('bookedBy', { name: g.bookerName ?? '—', who: (c) => <>{c}</> })}
         </p>
       </div>
       <ul className="mt-2 flex flex-col gap-2">
