@@ -510,6 +510,34 @@ export function RoomBedPicker({
     onChange({ ...value, rooms: newRooms });
   };
 
+  // Drop any participant already CONFIRMED-booked elsewhere over these dates.
+  // They can't be in this booking — and leaving them in the draft makes it
+  // un-submittable (a guaranteed conflict). The add picker already hides them;
+  // this clears stale picks the draft still holds (a persisted draft, a person
+  // booked after being added, or a group/edit placement that's since clashed).
+  React.useEffect(() => {
+    if (bookedIds.size === 0) return;
+    const prune = (list: ParticipantPick[]) =>
+      list.filter((p) => !(p.kind === 'user' && bookedIds.has(p.userId)));
+
+    if (value.mode === 'FULL_COTTAGE') {
+      const next = prune(value.fullCottageParticipants);
+      if (next.length !== value.fullCottageParticipants.length) {
+        onChange({ ...value, fullCottageParticipants: next });
+      }
+      return;
+    }
+
+    let changed = false;
+    const newRooms: Record<string, ParticipantPick[]> = {};
+    for (const [roomId, list] of Object.entries(value.rooms)) {
+      const next = prune(list);
+      if (next.length !== list.length) changed = true;
+      if (next.length > 0) newRooms[roomId] = next;
+    }
+    if (changed) onChange({ ...value, rooms: newRooms });
+  }, [value, bookedIds, onChange]);
+
   // Normalize bed assignments: a participant in a BEDS-mode room that lacks a
   // valid bed — injected by a group preset or a whole-cottage→rooms flip, or
   // whose bed just became taken — is parked in the next free bed so it both
@@ -518,9 +546,18 @@ export function RoomBedPicker({
     let changed = false;
     const newRooms: Record<string, ParticipantPick[]> = { ...value.rooms };
     for (const room of rooms) {
-      if (room.capacityMode !== 'BEDS') continue;
       const list = value.rooms[room.id];
       if (!list || list.length === 0) continue;
+      // Non-bed rooms (capacity/slot model) never carry a bed assignment. A
+      // stale bedId can survive a cross-room move out of a BEDS room, so strip
+      // it — otherwise the summary mislabels the seat ("Double bed: …").
+      if (room.capacityMode !== 'BEDS') {
+        if (list.some((p) => p.bedId)) {
+          newRooms[room.id] = list.map((p) => (p.bedId ? { ...p, bedId: undefined } : p));
+          changed = true;
+        }
+        continue;
+      }
       const roomBeds = beds.filter((b) => b.roomId === room.id);
       const occByBed = new Map(
         bedOccupancyOf(availability, room.id).map((b) => [b.bedId, b] as const),

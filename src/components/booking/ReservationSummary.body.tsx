@@ -54,7 +54,9 @@ export function ReservationSummaryBody({
   const bedName = (roomId: string, bedId: string | null): string | null => {
     if (!bedId) return null;
     const bed = beds.find((b) => b.id === bedId);
-    if (!bed) return null;
+    // Only label a bed that truly belongs to this room — a stale bedId left over
+    // from a move into another room must not show its old "Double bed:" label.
+    if (!bed || bed.roomId !== roomId) return null;
     return bedDisplayName(bed.kind, (k) => t(k), {
       allBedsInRoom: beds.filter((b) => b.roomId === roomId),
       bedId,
