@@ -408,7 +408,7 @@ function BookingGroupCard({
           </span>
         </button>
         {allowCancel && (canModify || canDelete) && (
-            <div className="mt-1 flex flex-wrap gap-2 pl-6">
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               {canModify && (
                 <Link
                   href={`/book?edit=${g.bookingId}`}
@@ -420,8 +420,12 @@ function BookingGroupCard({
               )}
               {/* Whole-booking cancel for anyone who can delete it (the booker, or
                   an admin/manager acting on someone else's) — including one-person
-                  stays. The row's redundant "Cancel my stay" is hidden below. */}
-              {canDelete && <CancelBookingButton bookingId={g.bookingId} />}
+                  stays. The row's redundant "Cancel my stay" is hidden below.
+                  `ml-auto` pins it to the right edge (Edit sits at the left), and
+                  keeps it right-aligned when it's the only button. */}
+              {canDelete && (
+                <CancelBookingButton bookingId={g.bookingId} className="ml-auto" />
+              )}
             </div>
           )}
       </div>

@@ -37,7 +37,13 @@ export function CancelRowButton({ id, own }: { id: string; own: boolean }) {
   );
 }
 
-export function CancelBookingButton({ bookingId }: { bookingId: string }) {
+export function CancelBookingButton({
+  bookingId,
+  className,
+}: {
+  bookingId: string;
+  className?: string;
+}) {
   const t = useTranslations('Dashboard');
   const confirm = useConfirm();
   const router = useRouter();
@@ -46,6 +52,7 @@ export function CancelBookingButton({ bookingId }: { bookingId: string }) {
     <Button
       variant="outline"
       size="sm"
+      className={className}
       disabled={isPending}
       onClick={async () => {
         if (!(await confirm({ message: t('confirmCancelBooking'), destructive: true }))) return;

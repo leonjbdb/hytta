@@ -66,8 +66,13 @@ export default async function AuthenticatedLayout({
        * `overflow-y-auto` alone leaves x as `visible`, which CSS promotes to
        * `auto`, so that phantom horizontal scroll appears; pinning x to
        * `hidden` removes it.
+       *
+       * `overscroll-contain` keeps an overscroll at this region's top/bottom
+       * from chaining to the document. Without it, flinging past the end on
+       * iOS rubber-bands the page and the sticky header visibly drifts up off
+       * the top before snapping back; containing the overscroll pins it.
        */}
-      <div className="flex-1 overflow-x-hidden overflow-y-auto">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
         <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-6">{children}</main>
       </div>
       {/*

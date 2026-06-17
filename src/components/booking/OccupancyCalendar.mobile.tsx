@@ -107,6 +107,7 @@ export function OccupancyCalendar(props: OccupancyCalendarProps) {
           prevLabel={t('prevMonth')}
           nextLabel={t('nextMonth')}
           todayLabel={t('today')}
+          includePastYears={!disablePast}
         />
 
         {dayPicker}
@@ -178,6 +179,7 @@ function CalendarHeader({
   prevLabel,
   nextLabel,
   todayLabel,
+  includePastYears,
 }: {
   month: Date;
   onMonthChange: (d: Date) => void;
@@ -187,6 +189,9 @@ function CalendarHeader({
   prevLabel: string;
   nextLabel: string;
   todayLabel: string;
+  /** Prepend the previous 2 years to the dropdown — used where past dates are
+   *  browsable (the dashboard), so past stays are reachable without typing. */
+  includePastYears: boolean;
 }) {
   const today = startOfToday();
   const isCurrentMonth =
@@ -201,17 +206,18 @@ function CalendarHeader({
     }));
   }, [locale]);
 
-  // Suggested years: today + next 5. Past / far-future years stay reachable by
-  // typing into the field (`allowCustom`).
+  // Suggested years: today + next 5, plus the previous 2 when past dates are
+  // browsable (`includePastYears`). Other years stay reachable by typing into
+  // the field (`allowCustom`).
   const baseYear = today.getFullYear();
-  const yearOptions = React.useMemo(
-    () =>
-      Array.from({ length: 6 }, (_, i) => ({
-        id: String(baseYear + i),
-        name: String(baseYear + i),
-      })),
-    [baseYear],
-  );
+  const yearOptions = React.useMemo(() => {
+    const start = includePastYears ? baseYear - 2 : baseYear;
+    const count = includePastYears ? 8 : 6;
+    return Array.from({ length: count }, (_, i) => ({
+      id: String(start + i),
+      name: String(start + i),
+    }));
+  }, [baseYear, includePastYears]);
 
   const setMonthIdx = (idx: number) => onMonthChange(new Date(month.getFullYear(), idx, 1));
   const setYear = (y: number) => onMonthChange(new Date(y, month.getMonth(), 1));

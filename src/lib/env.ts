@@ -113,7 +113,19 @@ function loadEnv(): Env {
 // Validate at import time so failures happen at boot, not on first request.
 // During Next.js linting/type-checking we skip validation to allow tooling
 // to run without a populated .env.local.
-export const env: Env =
-  process.env.SKIP_ENV_VALIDATION === '1'
-    ? (process.env as unknown as Env)
-    : loadEnv();
+//
+// `next build` collects page data in worker processes that import this module.
+// Those workers must NOT validate runtime secrets, which live as Worker
+// Variables and are absent from the build environment. We detect the build via
+// Next's own `NEXT_PHASE`, set inside the `next build` process and forwarded to
+// its workers — unlike a custom `SKIP_ENV_VALIDATION`, which is lost across the
+// bun → opennext → next process hops on Cloudflare Workers Builds. `NEXT_PHASE`
+// is only `phase-production-build` during the build, so the Worker still
+// validates at runtime. `SKIP_ENV_VALIDATION` is kept as a manual override.
+const skipEnvValidation =
+  process.env.SKIP_ENV_VALIDATION === '1' ||
+  process.env.NEXT_PHASE === 'phase-production-build';
+
+export const env: Env = skipEnvValidation
+  ? (process.env as unknown as Env)
+  : loadEnv();
